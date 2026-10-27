@@ -141,6 +141,12 @@ export function Calendar({
     setYear(d.getFullYear());
     setMonth(d.getMonth());
   }
+  function selectDay(date: string) {
+    const [selectedYear, selectedMonth] = date.split("-");
+    setYear(Number(selectedYear));
+    setMonth(Number(selectedMonth) - 1);
+    setSelected(date);
+  }
   const all = entries.data?.entries || [];
   const selection = selected.startsWith(start.slice(0, 7)) ? selected : start;
   const selectedEntry = all.find((e) => e.record_date === selection);
@@ -222,6 +228,8 @@ export function Calendar({
           onClick={() => {
             setYear(now.getFullYear());
             setMonth(now.getMonth());
+            setSelected(today());
+            setView("month");
           }}
         >
           回到今天
@@ -237,7 +245,7 @@ export function Calendar({
               month={month}
               entries={filtered}
               selected={selection}
-              onDay={setSelected}
+              onDay={selectDay}
               monday={settings.week_starts_monday}
             />
             <StatsBar stats={stats.data} />
@@ -303,7 +311,7 @@ export function Calendar({
               <MonthGrid
                 year={year}
                 month={i}
-                entries={entries.data?.entries || []}
+                entries={filtered}
                 onDay={onDay}
                 monday={settings.week_starts_monday}
                 mini

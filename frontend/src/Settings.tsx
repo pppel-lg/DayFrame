@@ -441,7 +441,7 @@ export default function Settings({
                       setRestorePath(result.path);
                       setNotice(
                         native
-                          ? "备份已恢复到新目录。核对后可在上方选择归档目录。"
+                          ? "备份已恢复到新目录。核对后，请先将恢复的文件夹复制到备份目录以外，再在上方选择该归档目录。"
                           : "备份已恢复到新目录。请核对后手动切换归档挂载。",
                       );
                     });
@@ -487,7 +487,11 @@ export default function Settings({
                 <div className="restore-result" role="status">
                   <strong>已恢复的位置</strong>
                   <code>{restorePath}</code>
-                  <p>当前运行的归档没有自动切换。</p>
+                  <p>
+                    {native
+                      ? "当前归档未切换。请先将恢复的文件夹复制到备份目录以外，再选择新位置。"
+                      : "当前运行的归档没有自动切换。"}
+                  </p>
                 </div>
               ) : null}
               <div className="calendar-export">

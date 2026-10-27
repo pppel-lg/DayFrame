@@ -20,7 +20,7 @@ Today uses equally weighted camera and journal panels above seven recent dates. 
 
 ## Decisions
 
-Reuse the existing React/FastAPI business code instead of rewriting it. A same-origin sidecar avoids weakening browser security for Tauri custom origins. Bundle WebView2 offline installer in NSIS. Use current-user installation, native window decorations, high DPI handling and a 1000×720 minimum window. No app auto-start or LAN firewall changes without an explicit user action.
+Reuse the existing React/FastAPI business code instead of rewriting it. A same-origin sidecar avoids weakening browser security for Tauri custom origins. Bundle WebView2 offline installer in NSIS. Use current-user installation, native window decorations, high DPI handling and a 1000×600 minimum window with initial working-area clamping. This lower minimum height lets a 1080p display at 150% scaling keep the title bar and taskbar accessible; content scrolls. No app auto-start or LAN firewall changes without an explicit user action.
 
 ## Verification and delivery
 

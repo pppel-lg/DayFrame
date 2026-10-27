@@ -173,7 +173,7 @@ fn main() {
         .setup(|app| {
             let handle = app.handle().clone();
             let mut builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
-                .title("DayFrame").inner_size(1380., 940.).min_inner_size(1000., 720.).center()
+                .title("DayFrame").inner_size(1380., 940.).min_inner_size(1000., 600.).prevent_overflow().center()
                 .data_directory(std::env::var_os("DAYFRAME_DATA_HOME").map(PathBuf::from).unwrap_or_else(|| std::env::var_os("LOCALAPPDATA").map(PathBuf::from).unwrap_or_default().join("DayFrame")).join("WebView2"))
                 .on_navigation({ let app = handle.clone(); move |url| {
                     if url.scheme() == "tauri" || (url.scheme() == "http" && url.host_str() == Some("tauri.localhost")) { return true; }

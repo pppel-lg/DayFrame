@@ -219,7 +219,7 @@ def main():
         backend_port = status['port']
         results['checks'].append('native launch + bundled backend with historical port 8765 occupied')
         with sync_playwright() as playwright:
-            browser = playwright.chromium.connect_over_cdp(f'http://127.0.0.1:{port}')
+            browser = playwright.chromium.connect_over_cdp(f'http://127.0.0.1:{port}', no_defaults=True)
             context = browser.contexts[0]
             page = wait_for(lambda: next((p for p in context.pages if p.url.startswith(f'http://127.0.0.1:{backend_port}/')), None), label='real React webview')
             page.on('pageerror', lambda error: results['errors'].append(str(error)))
@@ -316,7 +316,7 @@ def main():
         port = free_port()
         process, status = launch(executable, home, status_path, port, args.default_install)
         with sync_playwright() as playwright:
-            browser = playwright.chromium.connect_over_cdp(f'http://127.0.0.1:{port}')
+            browser = playwright.chromium.connect_over_cdp(f'http://127.0.0.1:{port}', no_defaults=True)
             page = wait_for(lambda: next((p for p in browser.contexts[0].pages if p.url.startswith(f'http://127.0.0.1:{status["port"]}/')), None), label='reopened webview')
             expect(page.locator('main h1')).to_be_visible()
             entry = api(page, '/entries/' + day)
@@ -333,7 +333,7 @@ def main():
         process = AttachedProcess(status['pid'])
         wait_for(lambda: cdp_ready(port), label='restarted WebView2')
         with sync_playwright() as playwright:
-            browser = playwright.chromium.connect_over_cdp(f'http://127.0.0.1:{port}')
+            browser = playwright.chromium.connect_over_cdp(f'http://127.0.0.1:{port}', no_defaults=True)
             page = wait_for(lambda: next((p for p in browser.contexts[0].pages if p.url.startswith(f'http://127.0.0.1:{status["port"]}/')), None), label='native restarted webview')
             expect(page.locator('main h1')).to_be_visible()
             assert len(api(page, '/entries/' + day)['photos']) == 2
@@ -349,7 +349,7 @@ def main():
         port = free_port()
         process, status = launch(executable, home, status_path, port, args.default_install)
         with sync_playwright() as playwright:
-            browser = playwright.chromium.connect_over_cdp(f'http://127.0.0.1:{port}')
+            browser = playwright.chromium.connect_over_cdp(f'http://127.0.0.1:{port}', no_defaults=True)
             page = wait_for(lambda: next((p for p in browser.contexts[0].pages if p.url.startswith(f'http://127.0.0.1:{status["port"]}/')), None), label='post-crash reopened webview')
             expect(page.locator('main h1')).to_be_visible()
             assert len(api(page, '/entries/' + day)['photos']) == 2

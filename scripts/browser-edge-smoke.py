@@ -1,4 +1,5 @@
 """Targeted UI regression checks against browser-smoke's disposable instance."""
+import argparse
 import io
 import json
 from datetime import date, timedelta
@@ -9,7 +10,12 @@ from playwright.sync_api import expect, sync_playwright
 
 
 def main():
-    base = 'http://127.0.0.1:8765'
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--base', default='http://127.0.0.1:8765')
+    parser.add_argument('--output', type=Path, default=Path('artifacts/browser'))
+    options = parser.parse_args()
+    base = options.base.rstrip('/')
+    options.output.mkdir(parents=True, exist_ok=True)
     today = date.today().isoformat()
     previous = (date.today()-timedelta(days=1)).isoformat()
     image = io.BytesIO()
@@ -27,6 +33,9 @@ def main():
             previous = (date.fromisoformat(previous)-timedelta(days=1)).isoformat()
         page.goto(base + '/#calendar')
         page.locator(f'button[title^="{previous} "]').click()
+        panel = page.locator('.selected-day-panel')
+        expect(panel).to_be_visible()
+        panel.get_by_role('button', name='记录这一天', exact=True).click()
         dialog = page.get_by_role('dialog')
         expect(dialog).to_be_visible()
         dialog.locator('input[type=file]').set_input_files({'name': 'cross-date.png', 'mimeType': 'image/png', 'buffer': image.getvalue()})
@@ -62,7 +71,7 @@ def main():
         missing_context.close()
         browser.close()
     result = {'result': 'PASS', 'checks': ['cross-date duplicate explicit confirmation', 'CSV download link', 'missing original warning and no completed day/heatmap state']}
-    Path('artifacts/browser/edge-result.json').write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding='utf-8')
+    (options.output / 'edge-result.json').write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding='utf-8')
     print(json.dumps(result, ensure_ascii=False))
 
 

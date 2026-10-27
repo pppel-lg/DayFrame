@@ -57,6 +57,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          cache-on-failure: true
       - name: Prepare verification output and check release version
         run: |
           New-Item -ItemType Directory -Force -Path artifacts/desktop/logs | Out-Null
@@ -79,7 +80,7 @@ jobs:
         working-directory: frontend
       - name: Resolve Rust dependencies and collect installed dependency notices
         run: |
-          cargo generate-lockfile --manifest-path src-tauri/Cargo.toml 2>&1 | Tee-Object -FilePath artifacts/desktop/logs/cargo-lockfile.log
+          cargo fetch --locked --target x86_64-pc-windows-msvc --manifest-path src-tauri/Cargo.toml 2>&1 | Tee-Object -FilePath artifacts/desktop/logs/cargo-lockfile.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python scripts/collect-notices.py --rust 2>&1 | Tee-Object -FilePath artifacts/desktop/logs/dependency-notices.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

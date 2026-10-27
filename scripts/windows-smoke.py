@@ -67,10 +67,18 @@ def close_window(process):
         pid = ctypes.c_ulong()
         user32.GetWindowThreadProcessId(ctypes.c_void_p(window), ctypes.byref(pid))
         if pid.value == process.pid and user32.IsWindowVisible(ctypes.c_void_p(window)):
-            handles.append(window)
+            title = ctypes.create_unicode_buffer(512)
+            window_class = ctypes.create_unicode_buffer(256)
+            user32.GetWindowTextW(ctypes.c_void_p(window), title, len(title))
+            user32.GetClassNameW(ctypes.c_void_p(window), window_class, len(window_class))
+            # Tao's dispatch target and the single-instance server can also be
+            # marked visible. Closing those destroys event delivery; a real
+            # user closes only the native application window.
+            if title.value == 'DayFrame' and window_class.value == 'Tauri Window':
+                handles.append(window)
         return True
     user32.EnumWindows(collect, 0)
-    assert handles, 'Installed app has no visible native window'
+    assert len(handles) == 1, 'Expected exactly one visible DayFrame application window'
     for window in handles:
         user32.PostMessageW(ctypes.c_void_p(window), 0x0010, 0, 0)
     assert process.wait(timeout=30) == 0, 'Native app did not exit cleanly'
@@ -260,7 +268,7 @@ def main():
             }''')
             page.get_by_role('button', name='再拍一张', exact=True).click()
             expect(page.get_by_role('alert')).to_contain_text('Windows 的摄像头隐私权限')
-            page.evaluate('navigator.mediaDevices.getUserMedia=window.originalCameraRequest')
+            page.evaluate('() => { navigator.mediaDevices.getUserMedia=window.originalCameraRequest; }')
             page.get_by_role('button', name='再拍一张', exact=True).click()
             wait_for(lambda: page.locator('video').count() and page.locator('video').evaluate('(v)=>v.readyState>=2'), label='WebView2 synthetic camera permission and video')
             capture = page.get_by_role('button', name='拍下今天', exact=True)

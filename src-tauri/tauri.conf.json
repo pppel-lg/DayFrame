@@ -29,7 +29,8 @@
         "languages": ["SimpChinese", "English"],
         "displayLanguageSelector": false,
         "startMenuFolder": "DayFrame",
-        "installerIcon": "icons/icon.ico"
+        "installerIcon": "icons/icon.ico",
+        "installerHooks": "windows/hooks.nsh"
       }
     }
   }

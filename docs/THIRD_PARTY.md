@@ -20,4 +20,8 @@
 
 Windows 发布不等同于完成许可证法律审查。发布者应以打包 sidecar 内实际 `licenses/`、具体 FFmpeg 构建和依赖版本核对分发义务；发现缺失时先补齐，不能把在线包说明当作离线分发材料已存在的证据。
 
+CI 在打包前执行 `python scripts/collect-notices.py --rust`。脚本按已安装的前端 npm 生产依赖树和锁定的 Windows Cargo metadata，复制实际 LICENSE、COPYING、NOTICE、COPYRIGHT、OFL 等文件到 `artifacts/dependency-notices/licenses/{npm,rust}`，同时保留包清单、版本、来源、文件哈希及 inventory。sidecar 构建再将这些目录嵌入离线 `licenses/`。Rust 清单包含 metadata 报告的构建依赖，不声称每个包都进入最终二进制。
+
+脚本保留原始复合 SPDX 表达式，不替依赖选择许可证。只有元数据而没有许可文件的包明确标为 `metadata-only`，列入 `collection.json` 待审查；既没有许可文件也没有有效声明的依赖使收集失败。自动收集不证明许可证义务、完整对应源码或再分发条件已经满足。验证 artifact 同时提供收集清单和本次生成的 Cargo.lock，供逐项核对。
+
 容器基础镜像使用官方 Node 和 Python 镜像。复现依赖审计：`python -m pip_audit -r requirements.txt`，`npm audit`，`npm audit --prefix frontend`；Rust 可使用安装后的 `cargo audit`。审计工具需另行安装，结果是特定日期的漏洞数据库快照，应在后续升级时重新执行。

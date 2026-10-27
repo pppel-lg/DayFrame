@@ -57,6 +57,6 @@ Get-FileHash -LiteralPath 'artifacts/desktop/DayFrame-1.1.0-windows-x64-setup.ex
 
 ## CI 和发布边界
 
-`.github/workflows/windows-release.yml` 在 PR、`main`、`codex/windows-desktop`、`v1.1.0` 标签和手动运行时构建。它安装依赖，执行后端测试、类型检查、真实打包、打包后端/FFmpeg 验证和安装后烟雾验证，成功后提供安装器、`SHA256SUMS` 和 `build-info.json`；验证日志作为独立 artifact 保留。原有 `.github/workflows/release.yml` 继续负责 Docker 1.0.0。
+`.github/workflows/windows-release.yml` 在 PR、`main`、`codex/windows-desktop`、`v1.1.0` 标签和手动运行时构建。它安装依赖，执行后端测试、类型检查、真实打包、打包后端/FFmpeg 验证和安装后烟雾验证，成功后提供安装器、`SHA256SUMS` 和 `build-info.json`；验证日志作为独立 artifact 保留。CI 在全新 runner 上为安装烟雾脚本启用 `--default-install`，核对真实默认程序路径与默认数据目录相互独立；该选项不用于已有个人数据的日常电脑。原有 `.github/workflows/release.yml` 继续负责 Docker 1.0.0。
 
 普通 PR 或分支构建不会创建 Windows Release。只有手动运行并明确选择 `publish=true`，或推送匹配的 `v1.1.0` 标签，才会在安装验证成功后进入单独发布 job。发布前再次核对摘要；已存在的 v1.1.0 会使发布失败，不替换附件，也不接触 v1.0.0 的 Docker 资产。未签名安装器的限制见 [安装说明](WINDOWS_INSTALL.md)。

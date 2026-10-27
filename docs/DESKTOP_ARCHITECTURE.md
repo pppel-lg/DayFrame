@@ -20,7 +20,7 @@ Tauri 单实例机制处理重复启动。同一归档的后端独占锁另外�
 
 ## 资源和持久目录
 
-NSIS 以当前用户安装应用，并打包 WebView2 离线安装程序。Tauri 使用 `externalBin` 分发 Windows x64 sidecar；sidecar 自带生产前端、FFmpeg 可执行程序及 `licenses/` 分发说明。PyInstaller 会临时解包运行资源；归档、备份和桌面设置不存入该临时目录或程序安装目录。
+NSIS 以当前用户安装应用，默认程序目录为 `%LOCALAPPDATA%\Programs\DayFrame`，并打包 WebView2 离线安装程序。Tauri 使用 `externalBin` 分发 Windows x64 sidecar；sidecar 自带生产前端、FFmpeg 可执行程序及 `licenses/` 分发说明。PyInstaller 会临时解包运行资源；归档、备份和桌面设置不存入该临时目录或程序安装目录。
 
 默认用户根目录为 `%LOCALAPPDATA%\DayFrame`，下有 `Archive`、`Backups`、`Logs`、`Settings`。`DAYFRAME_DATA_HOME` 只为开发和隔离验证提供覆盖入口。设置页中的原生目录选择器返回用户选中的目录；后端检查路径与写入权限，原子保存路径配置，重启后才使用。它不复制或自动迁移任何档案。
 

@@ -12,6 +12,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
 import socket
 import subprocess
 import tempfile
@@ -81,6 +82,65 @@ def port_closed(port):
         return probe.connect_ex(('127.0.0.1', port)) != 0
 
 
+def pid_alive(pid):
+    kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+    kernel.OpenProcess.restype = ctypes.c_void_p
+    kernel.OpenProcess.argtypes = [ctypes.c_ulong, ctypes.c_bool, ctypes.c_ulong]
+    kernel.GetExitCodeProcess.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_ulong)]
+    kernel.CloseHandle.argtypes = [ctypes.c_void_p]
+    handle = kernel.OpenProcess(0x1000, False, pid)
+    if not handle:
+        return False
+    code = ctypes.c_ulong()
+    active = bool(kernel.GetExitCodeProcess(handle, ctypes.byref(code))) and code.value == 259
+    kernel.CloseHandle(handle)
+    return active
+
+
+class AttachedProcess:
+    def __init__(self, pid):
+        self.pid = pid
+
+    def poll(self):
+        return None if pid_alive(self.pid) else 0
+
+    def wait(self, timeout=30):
+        wait_for(lambda: not pid_alive(self.pid), timeout, 'restarted native process close')
+        return 0
+
+
+def cancel_directory_dialog(pid):
+    user32 = ctypes.windll.user32
+    callback_type = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+    found = []
+    @callback_type
+    def find(window, _):
+        owner = ctypes.c_ulong()
+        user32.GetWindowThreadProcessId(ctypes.c_void_p(window), ctypes.byref(owner))
+        if owner.value == pid:
+            title = ctypes.create_unicode_buffer(512)
+            user32.GetWindowTextW(ctypes.c_void_p(window), title, len(title))
+            if title.value == '选择 DayFrame 文件夹':
+                found.append(window)
+        return True
+    user32.EnumWindows(find, 0)
+    for window in found:
+        user32.PostMessageW(ctypes.c_void_p(window), 0x0010, 0, 0)
+    return bool(found)
+
+
+def descendant_pids(root_pid):
+    shell = str(Path(os.environ['SystemRoot']) / 'System32/WindowsPowerShell/v1.0/powershell.exe')
+    result = subprocess.run([shell, '-NoProfile', '-Command', 'Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId | ConvertTo-Json -Compress'], capture_output=True, text=True, check=True)
+    rows = json.loads(result.stdout)
+    found = {root_pid}
+    while True:
+        children = {r['ProcessId'] for r in rows if r['ParentProcessId'] in found}
+        if children <= found:
+            return found
+        found |= children
+
+
 def api(page, path, payload=None, method='GET'):
     return page.evaluate('''async ({path,payload,method}) => {
       const r=await fetch('/api'+path,{method,credentials:'same-origin',
@@ -98,10 +158,12 @@ def job(page, kind, **fields):
     return wait_for(result, timeout=90, label=kind)
 
 
-def launch(executable, home, status_path, debug_port):
+def launch(executable, home, status_path, debug_port, default_home=False):
     if status_path.exists():
         status_path.unlink()
     env = dict(os.environ, DAYFRAME_DATA_HOME=str(home), DAYFRAME_SMOKE_STATUS=str(status_path), DAYFRAME_TEST_DEBUG_PORT=str(debug_port))
+    if default_home:
+        env.pop('DAYFRAME_DATA_HOME', None)
     # The installed app must find all of its own runtimes and codecs.
     env['PATH'] = str(Path(os.environ['SystemRoot']) / 'System32')
     for key in ['PYTHONHOME', 'PYTHONPATH', 'FRONTEND_DIST', 'DAYFRAME_FFMPEG']:
@@ -120,17 +182,26 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--installer', type=Path, required=True)
     parser.add_argument('--output', type=Path, default=Path('artifacts/windows-smoke'))
+    parser.add_argument('--default-install', action='store_true', help='Dedicated GitHub runner only: test normal installation and default data paths')
     args = parser.parse_args()
     if os.name != 'nt':
         raise SystemExit('Installed-app smoke requires Windows.')
     args.output = args.output.resolve()
     args.output.mkdir(parents=True, exist_ok=True)
     results = {'installer': args.installer.name, 'checks': [], 'errors': [], 'external_requests': []}
-    install = Path(tempfile.gettempdir()) / ('DayFrameInstall-' + str(os.getpid()))
-    home = args.output / '全新用户 data'
+    if args.default_install:
+        assert os.environ.get('GITHUB_ACTIONS') == 'true', 'Default-path test is restricted to disposable GitHub runners'
+        install = Path(os.environ['LOCALAPPDATA']) / 'Programs/DayFrame'
+        home = Path(os.environ['LOCALAPPDATA']) / 'DayFrame'
+        assert not install.exists() and not home.exists(), 'Default test requires empty runner directories'
+        install_args = [str(args.installer.resolve()), '/S']
+    else:
+        install = Path(tempfile.gettempdir()) / ('DayFrameInstall-' + str(os.getpid()))
+        home = args.output / '全新用户 data'
+        install_args = [str(args.installer.resolve()), '/S', '/D=' + str(install)]
     status_path = args.output / 'native-status.json'
     # NSIS /D is last. This unique temporary target contains no user installation.
-    subprocess.run([str(args.installer.resolve()), '/S', '/D=' + str(install)], check=True, timeout=240)
+    subprocess.run(install_args, check=True, timeout=240)
     executable = install / 'dayframe.exe'
     assert executable.is_file(), 'Installer did not install the real application'
     assert (install / 'dayframe-server.exe').is_file(), 'Installer omitted the packaged Python sidecar'
@@ -144,7 +215,7 @@ def main():
     process = None
     try:
         port = free_port()
-        process, status = launch(executable, home, status_path, port)
+        process, status = launch(executable, home, status_path, port, args.default_install)
         backend_port = status['port']
         results['checks'].append('native launch + bundled backend with historical port 8765 occupied')
         with sync_playwright() as playwright:
@@ -158,6 +229,12 @@ def main():
             assert page.evaluate('!!window.__TAURI_INTERNALS__'), 'This must be the installed Tauri webview'
             expect(page.locator('nav[aria-label="主导航"] a')).to_have_count(8)
             results['checks'].append('actual installed WebView2 renders React and all 8 navigation items')
+            page.evaluate('''() => { window.pickerDone=false; window.pickerError=null;
+              window.__TAURI_INTERNALS__.invoke('choose_directory').then(value=>{window.pickerDone=value===null}).catch(e=>{window.pickerError=String(e)}); }''')
+            wait_for(lambda: cancel_directory_dialog(process.pid), label='real native directory picker')
+            wait_for(lambda: page.evaluate('window.pickerDone || window.pickerError'), label='native directory picker response')
+            assert page.evaluate('window.pickerDone && !window.pickerError')
+            results['checks'].append('native IPC capability and real directory picker cancellation')
             page.screenshot(path=str(args.output / 'installed-today-empty.png'))
             day = date.today().isoformat()
             page.locator('input[type=file]').first.set_input_files({'name': 'synthetic.png', 'mimeType': 'image/png', 'buffer': PNG})
@@ -222,6 +299,14 @@ def main():
             magic = page.evaluate('async path=>Array.from(new Uint8Array(await (await fetch(path)).arrayBuffer()).slice(0,32))', movie['url'])
             assert b'ftyp' in bytes(magic)
             results['checks'].append('calendar/timeline/memories/locations/letters/report/settings; locked letters, stats, integrity, reindex, verified backup/restore, HTML/CSV, Chromium PDF printability, FFmpeg MP4')
+            page.goto(f'http://127.0.0.1:{backend_port}/#report')
+            page.get_by_role('button', name='导出 HTML', exact=True).click()
+            export_link = page.get_by_role('link', name='打开或下载结果').first
+            expect(export_link).to_be_visible(timeout=30000)
+            export_link.click()
+            wait_for(lambda: any(p.stat().st_size > 0 for p in (args.output / 'downloads').glob('*.html')), label='native HTML export download')
+            assert page.url.startswith(f'http://127.0.0.1:{backend_port}/#report')
+            results['checks'].append('real UI HTML export link downloads through native handler without leaving app')
             assert not results['errors'], results['errors']
             assert not results['external_requests'], results['external_requests']
             close_window(process)
@@ -229,7 +314,7 @@ def main():
         wait_for(lambda: port_closed(backend_port), label='backend port released after native window close')
         results['checks'].append('native window close terminates sidecar and releases listening port')
         port = free_port()
-        process, status = launch(executable, home, status_path, port)
+        process, status = launch(executable, home, status_path, port, args.default_install)
         with sync_playwright() as playwright:
             browser = playwright.chromium.connect_over_cdp(f'http://127.0.0.1:{port}')
             page = wait_for(lambda: next((p for p in browser.contexts[0].pages if p.url.startswith(f'http://127.0.0.1:{status["port"]}/')), None), label='reopened webview')
@@ -238,11 +323,41 @@ def main():
             assert entry['note'] == 'Windows 安装验收 · 日记持久化' and len(entry['photos']) == 2
             duplicate = subprocess.Popen([str(executable)], env=dict(os.environ, DAYFRAME_DATA_HOME=str(home)))
             assert duplicate.wait(timeout=15) == 0, 'Duplicate launch must focus original and exit'
+            active_paths = api(page, '/desktop')['paths']
+            api(page, '/desktop/paths', active_paths, 'PUT')
+            old_pid = process.pid
+            page.evaluate("window.__TAURI_INTERNALS__.invoke('restart_desktop')")
+            process.wait(timeout=30)
+            process = None
+        status = wait_for(lambda: (value if (value := read_status(status_path)) and value['pid'] != old_pid else None), label='native restart readiness')
+        process = AttachedProcess(status['pid'])
+        wait_for(lambda: cdp_ready(port), label='restarted WebView2')
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.connect_over_cdp(f'http://127.0.0.1:{port}')
+            page = wait_for(lambda: next((p for p in browser.contexts[0].pages if p.url.startswith(f'http://127.0.0.1:{status["port"]}/')), None), label='native restarted webview')
+            expect(page.locator('main h1')).to_be_visible()
+            assert len(api(page, '/entries/' + day)['photos']) == 2
+            children = descendant_pids(status['sidecar_pid'])
+            assert len(children) >= 2, 'Expected PyInstaller bootstrap and bundled runtime descendants'
+            # Kill ONLY the Tauri parent. Its Windows job must clean up all backend descendants.
+            subprocess.run(['taskkill', '/PID', str(process.pid), '/F'], capture_output=True, check=True)
+            process.wait(timeout=15)
+            process = None
+        wait_for(lambda: all(not pid_alive(pid) for pid in children), timeout=30, label='job-object crash cleanup of every sidecar descendant')
+        wait_for(lambda: port_closed(status['port']), label='crashed native app backend port release')
+        results['checks'].append('native restart IPC preserves records; native-only forced crash kills full sidecar tree')
+        port = free_port()
+        process, status = launch(executable, home, status_path, port, args.default_install)
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.connect_over_cdp(f'http://127.0.0.1:{port}')
+            page = wait_for(lambda: next((p for p in browser.contexts[0].pages if p.url.startswith(f'http://127.0.0.1:{status["port"]}/')), None), label='post-crash reopened webview')
+            expect(page.locator('main h1')).to_be_visible()
+            assert len(api(page, '/entries/' + day)['photos']) == 2
             close_window(process)
             process = None
         assert (home / 'Archive' / 'archive.json').is_file()
         # Reinstall the real package, then uninstall it, preserving the independent data root.
-        subprocess.run([str(args.installer.resolve()), '/S', '/D=' + str(install)], check=True, timeout=240)
+        subprocess.run(install_args, check=True, timeout=240)
         assert (home / 'Archive' / 'archive.json').is_file()
         uninstaller = next(install.glob('*ninstall*.exe'), None)
         assert uninstaller, 'Uninstaller missing'
@@ -254,6 +369,8 @@ def main():
         if process is not None and process.poll() is None:
             subprocess.run(['taskkill', '/PID', str(process.pid), '/T', '/F'], capture_output=True)
         occupied.close()
+        if (home / 'Logs').exists():
+            shutil.copytree(home / 'Logs', args.output / 'backend-logs', dirs_exist_ok=True)
         (args.output / 'acceptance.json').write_text(json.dumps(results, ensure_ascii=False, indent=2), encoding='utf8')
     print('Installed Windows acceptance PASS (' + str(len(results['checks'])) + ' check groups)')
 

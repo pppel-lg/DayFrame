@@ -15,8 +15,9 @@
 - TypeScript 和生产构建：通过；生产依赖 npm audit 和 Python pip-audit 均未发现已知漏洞。一个上游 TestClient/httpx 弃用警告不影响结果。
 - 浏览器核心工作流和响应式截图：最终通过，覆盖合成摄像头拍摄、日记保存、原图字节导入、主照片确认、刷新持久化、全部导航、信件、备份、新目录恢复及 390px 适配；另通过拒绝相机权限后文件导入、跨午夜切换日期、跨日期重复图显式确认、CSV 下载入口、原图缺失状态提示回归。页面脚本错误与 5xx 响应均为 0。
 - 与 Docker 相同 HTTP 烟雾脚本的本地运行通过，并在强制停止/重启服务后核对原图、日记和备份仍可用。本地模式跳过 FFmpeg（未安装）以及容器挂载路径断言；远程容器模式强制验证这些项目。
-- 实际 Docker 构建及容器集成：待远程运行完成。
-- GitHub 镜像及版本发布：待远程运行完成。
+- 实际 Docker 构建及容器集成：[GitHub Actions #1](https://github.com/pppel-lg/DayFrame/actions/runs/40451412866) 全部成功。Linux 后端测试 **34 passed**（符号链接测试也通过）；TypeScript/Vite 构建、三个 Compose 配置校验通过。运行实际非 root Linux 容器后验证原图字节、编辑、索引重建、统计、完整性检查、备份、新目录恢复、自包含 HTML/CSV/年报及 FFmpeg MP4；重启同一个容器后，原图、日记、索引和备份仍可读。
+- GitHub 镜像及版本发布：已完成。镜像 `ghcr.io/pppel-lg/dayframe:1.0.0`（另有 latest），摘要 `sha256:40f9b7ce4f4aebbff363aea690a4b6d6b4f3b75ff68183d77cd0bd1c69b0ac1f`。源码发行提交 `5f7a69f107e850a2c2d0146009217637a56e1758`。
+- [v1.0.0 Release](https://github.com/pppel-lg/DayFrame/releases/tag/v1.0.0) 已发布可 `docker load` 的 Linux amd64 镜像包（248,495,879 字节）、部署配置包、独立 Compose 文件和 SHA256SUMS。
 
 ## 10,000 天数据规模
 

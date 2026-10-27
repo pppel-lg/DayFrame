@@ -9,6 +9,6 @@ Windows 10/11 x64 的当前用户 NSIS 安装包。Tauri v2 管理窗口与打�
 - 保留全部八个页面；界面采用本地中文字体、暖白与鼠尾草配色，包含空归档状态，不提供虚构照片或记录。
 - v1.0.0 Docker 镜像与附件保持独立，不由此发布替换。
 
-发布门禁要求在 Windows runner 上实际构建并静默安装这个安装包，检查真实 WebView2 页面/API、退出和重开、测试数据保留及端口 8765 冲突；摘要和来源提交记录在 `build-info.json`。对应运行的日志与烟雾验证报告位于 GitHub Actions artifacts。真实摄像头驱动、物理手机、第二台干净电脑和断电行为仍需人工验收，不能由 CI 结果推定。
+发布门禁要求在 Windows runner 上实际构建并静默安装这个安装包，检查真实 WebView2 页面/API、退出和重开、测试数据保留及端口 8765 冲突；摘要和来源提交记录在 `build-info.json`。对应运行的日志与烟雾验证报告位于 GitHub Actions artifacts。真实摄像头驱动、物理手机、第二台干净电脑、系统打印对话框、125%/150% 实机缩放和断电行为仍需人工验收，不能由 CI 结果推定。
 
 安装、数据和卸载说明见 [Windows 安装文档](https://github.com/pppel-lg/DayFrame/blob/v1.1.0/docs/WINDOWS_INSTALL.md)，旧 Docker 数据见 [迁移文档](https://github.com/pppel-lg/DayFrame/blob/v1.1.0/docs/WINDOWS_MIGRATION.md)，源码构建见 [构建文档](https://github.com/pppel-lg/DayFrame/blob/v1.1.0/docs/WINDOWS_BUILD.md)。

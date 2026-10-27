@@ -26,6 +26,7 @@ import {
   useResource,
 } from "./api";
 import type { Entry, Settings } from "./api";
+import { isDesktop } from "./desktop";
 import {
   CameraSymbol,
   draftPayload,
@@ -151,7 +152,9 @@ export default function Today({
     try {
       if (!navigator.mediaDevices?.getUserMedia)
         throw new Error(
-          "当前环境无法访问摄像头。请在本机 localhost 或 HTTPS 中打开；也可以从本地导入。",
+          isDesktop()
+            ? "无法访问摄像头。请检查 Windows 摄像头权限，或从本地导入照片。"
+            : "当前环境无法访问摄像头。请在本机 localhost 或 HTTPS 中打开；也可以从本地导入。",
         );
       stream.current?.getTracks().forEach((t) => t.stop());
       const media = await navigator.mediaDevices.getUserMedia({
@@ -190,7 +193,9 @@ export default function Today({
         setCamera(false);
         setError(
           e instanceof DOMException && e.name === "NotAllowedError"
-            ? "摄像头权限未开启。请在浏览器地址栏允许相机，或直接导入照片。"
+            ? isDesktop()
+              ? "摄像头权限未开启。请检查 Windows 的摄像头隐私权限，重新打开 DayFrame，或导入照片。"
+              : "摄像头权限未开启。请在浏览器地址栏允许相机，或直接导入照片。"
             : e instanceof DOMException && e.name === "NotFoundError"
               ? "没有找到可用摄像头。连接摄像头后重试，或从本地导入。"
               : errorText(e),
@@ -211,7 +216,7 @@ export default function Today({
     canvas.height = el.videoHeight;
     const ctx = canvas.getContext("2d");
     if (!ctx) {
-      setError("当前浏览器无法生成照片，请尝试导入。");
+      setError("无法生成照片，请重拍或从本地导入。");
       return;
     }
     if (settings.mirror_output) {

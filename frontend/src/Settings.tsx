@@ -298,9 +298,13 @@ export default function Settings({
                     {permission === "granted"
                       ? "已允许通知"
                       : permission === "denied"
-                        ? "通知已被浏览器阻止，可在地址栏权限中修改"
+                        ? native
+                          ? "系统通知权限未开启，可继续使用应用内提醒"
+                          : "通知已被浏览器阻止，可在地址栏权限中修改"
                         : permission === "unsupported"
-                          ? "当前浏览器不支持系统通知"
+                          ? native
+                            ? "当前系统无法显示通知，可继续使用应用内提醒"
+                            : "当前浏览器不支持系统通知"
                           : "允许后可在页面打开时显示系统通知"}
                   </p>
                 </div>

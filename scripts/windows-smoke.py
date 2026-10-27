@@ -254,6 +254,13 @@ def main():
             results['checks'].append('UI photo import + exact original bytes, diary, mood, city and tags')
             page.screenshot(path=str(args.output / 'installed-today-saved.png'))
             # Camera uses WebView2's synthetic media device; physical hardware remains manual QA.
+            page.evaluate('''() => {
+              window.originalCameraRequest=navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+              navigator.mediaDevices.getUserMedia=()=>Promise.reject(new DOMException('Synthetic denial','NotAllowedError'));
+            }''')
+            page.get_by_role('button', name='再拍一张', exact=True).click()
+            expect(page.get_by_role('alert')).to_contain_text('Windows 的摄像头隐私权限')
+            page.evaluate('navigator.mediaDevices.getUserMedia=window.originalCameraRequest')
             page.get_by_role('button', name='再拍一张', exact=True).click()
             wait_for(lambda: page.locator('video').count() and page.locator('video').evaluate('(v)=>v.readyState>=2'), label='WebView2 synthetic camera permission and video')
             capture = page.get_by_role('button', name='拍下今天', exact=True)

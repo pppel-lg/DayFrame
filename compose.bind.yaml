@@ -1,0 +1,6 @@
+# Optional host folders. Prepare Linux permissions for UID 10001 before starting.
+services:
+  dayframe:
+    volumes:
+      - ${DAYFRAME_ARCHIVE:?Set DAYFRAME_ARCHIVE to an absolute directory}:/data
+      - ${DAYFRAME_BACKUP_DIR:?Set DAYFRAME_BACKUP_DIR to an independent directory}:/backups

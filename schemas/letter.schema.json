@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "letter_id": {
+      "title": "Letter Id",
+      "type": "string"
+    },
+    "title": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+    },
+    "content": {
+      "maxLength": 100000,
+      "title": "Content",
+      "type": "string"
+    },
+    "unlock_date": {
+      "format": "date",
+      "title": "Unlock Date",
+      "type": "string"
+    },
+    "created_on_date": {
+      "format": "date",
+      "title": "Created On Date",
+      "type": "string"
+    },
+    "created_at_utc": {
+      "title": "Created At Utc",
+      "type": "string"
+    }
+  },
+  "required": [
+    "letter_id",
+    "title",
+    "content",
+    "unlock_date",
+    "created_on_date",
+    "created_at_utc"
+  ],
+  "title": "Letter",
+  "type": "object"
+}

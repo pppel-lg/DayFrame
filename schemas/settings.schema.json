@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "reminder_enabled": {
+      "default": false,
+      "title": "Reminder Enabled",
+      "type": "boolean"
+    },
+    "reminder_time": {
+      "default": "09:00",
+      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+      "title": "Reminder Time",
+      "type": "string"
+    },
+    "mirror_preview": {
+      "default": true,
+      "title": "Mirror Preview",
+      "type": "boolean"
+    },
+    "mirror_output": {
+      "default": false,
+      "title": "Mirror Output",
+      "type": "boolean"
+    },
+    "week_starts_monday": {
+      "default": true,
+      "title": "Week Starts Monday",
+      "type": "boolean"
+    }
+  },
+  "title": "Settings",
+  "type": "object"
+}

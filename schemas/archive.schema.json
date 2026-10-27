@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "format": {
+      "const": "dayframe-archive",
+      "default": "dayframe-archive",
+      "title": "Format",
+      "type": "string"
+    },
+    "format_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Format Version",
+      "type": "integer"
+    },
+    "archive_id": {
+      "title": "Archive Id",
+      "type": "string"
+    },
+    "created_at_utc": {
+      "title": "Created At Utc",
+      "type": "string"
+    },
+    "archive_start_date": {
+      "format": "date",
+      "title": "Archive Start Date",
+      "type": "string"
+    },
+    "description": {
+      "default": "My personal Dayframe archive",
+      "title": "Description",
+      "type": "string"
+    }
+  },
+  "required": [
+    "archive_id",
+    "created_at_utc",
+    "archive_start_date"
+  ],
+  "title": "ArchiveMetadata",
+  "type": "object"
+}

@@ -1,0 +1,6 @@
+# Explicit opt-in: docker compose -f compose.yaml -f compose.phone.yaml up -d
+# Upload service inside the container still starts ONLY on UI pairing action.
+services:
+  dayframe:
+    ports:
+      - "0.0.0.0:8766:8766"

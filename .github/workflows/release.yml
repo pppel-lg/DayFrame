@@ -1,0 +1,107 @@
+name: Test, build and publish Dayframe
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['docs/**', 'README.md', 'Dayframe.md', 'schemas/**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dayframe-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: pip install -r requirements-dev.txt
+      - run: python -m pytest backend/tests -q
+      - run: npm ci --no-audit --no-fund
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+
+  docker:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Validate Compose configurations
+        run: |
+          docker compose config --quiet
+          docker compose -f compose.yaml -f compose.phone.yaml config --quiet
+          DAYFRAME_ARCHIVE=/tmp/archive DAYFRAME_BACKUP_DIR=/tmp/backups docker compose -f compose.yaml -f compose.bind.yaml config --quiet
+      - name: Build runtime image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: dayframe:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Run container integration smoke test
+        run: |
+          docker run -d --name dayframe-ci -p 127.0.0.1:8765:8765 dayframe:ci
+          python scripts/container-smoke.py
+          docker restart dayframe-ci
+          python scripts/container-smoke.py --after-restart
+          docker logs dayframe-ci
+          docker rm -f dayframe-ci
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish image
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
+          docker tag dayframe:ci "$IMAGE:sha-${GITHUB_SHA::7}"
+          docker push "$IMAGE:sha-${GITHUB_SHA::7}"
+          if [[ "$GITHUB_REF" == refs/heads/main ]]; then
+            docker tag dayframe:ci "$IMAGE:latest"
+            docker push "$IMAGE:latest"
+          fi
+      - name: Attach portable Docker image to release
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          VERSION="1.0.0"
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            echo "Version v$VERSION is already released; latest image was updated above."
+            exit 0
+          fi
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}:$VERSION"
+          docker tag dayframe:ci "$IMAGE"
+          docker push "$IMAGE"
+          mkdir -p release
+          docker save "$IMAGE" | gzip > "release/dayframe-$VERSION-linux-amd64.tar.gz"
+          cp compose.yaml compose.phone.yaml compose.bind.yaml README.md release/
+          mkdir -p deployment/scripts deployment/docs
+          cp compose.yaml compose.phone.yaml compose.bind.yaml README.md .env.example deployment/
+          cp scripts/start.ps1 scripts/login-startup.ps1 deployment/scripts/
+          cp docs/ARCHIVE_FORMAT.md docs/BACKUP_RESTORE.md docs/SECURITY.md deployment/docs/
+          tar -czf "release/dayframe-$VERSION-deployment.tar.gz" -C deployment .
+          (cd release && sha256sum * > SHA256SUMS)
+          gh release create "v$VERSION" release/* --target "$GITHUB_SHA" --title "Dayframe $VERSION" --generate-notes

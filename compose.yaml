@@ -1,0 +1,26 @@
+name: dayframe
+services:
+  dayframe:
+    image: ghcr.io/pppel-lg/dayframe:1.0.0
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8765:8765"
+    environment:
+      DAYFRAME_DATA: /data
+      DAYFRAME_BACKUPS: /backups
+      TZ: ${TZ:-Asia/Taipei}
+    volumes:
+      - archive:/data
+      - backups:/backups
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+    stop_grace_period: 30s
+
+volumes:
+  archive:
+  backups:

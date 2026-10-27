@@ -32,9 +32,9 @@ Files: `backend/dayframe/desktop.py`, `desktop_entry.py`, `main.py`, `exports.py
 
 Interface: stdin receives one JSON line `{token, data_home?}`; stdout emits `DAYFRAME_READY {"port": number}` after Uvicorn startup. `DAYFRAME_DATA_HOME` overrides home only for isolated tests. `/desktop/launch?token=...` establishes cookie and redirects to `/`. `/api/desktop` returns `{desktop:true,paths:{archive,backups},pending_restart:boolean}`; `PUT /api/desktop/paths` validates/persists `{archive,backups}` and returns pending restart. These routes do not exist in ordinary Docker mode. `FRONTEND_DIST` and `DAYFRAME_FFMPEG` explicitly select bundled resources. A blank line or EOF on stdin requests shutdown.
 
-- [ ] Write and observe failing tests for config, cookie bootstrap, guarded API and subprocess startup/EOF shutdown.
-- [ ] Implement loopback port-0 server and atomic path settings with existing archive lease and graceful shutdown.
-- [ ] Verify focused tests and full backend suite, including FFmpeg path handling.
+- [x] Write and observe failing tests for config, cookie bootstrap, guarded API and subprocess startup/EOF shutdown.
+- [x] Implement loopback port-0 server and atomic path settings with existing archive lease and graceful shutdown.
+- [x] Verify focused tests and full backend suite, including FFmpeg path handling.
 
 ### Task 2: Reference-based React interface
 
@@ -42,9 +42,9 @@ Files: `frontend/src/{App,ui,Today,Archive,Memories,Letters,Settings}.tsx`, styl
 
 Interface: preserve existing API and props; optional desktop API above. Native `choose_directory` returns `string|null`; `restart_desktop` restarts the managed application. Detect Tauri using `window.__TAURI_INTERNALS__` and call its invoke or `@tauri-apps/api/core`. Ordinary Docker UI never invokes native commands.
 
-- [ ] Inspect the supplied reference images and existing business components.
-- [ ] Implement shared typography/palette/shell and eight layouts without removing functions.
-- [ ] Verify production build and real browser workflows at desktop and small widths; visually inspect screenshots beside references.
+- [x] Inspect the supplied reference images and existing business components.
+- [x] Implement shared typography/palette/shell and eight layouts without removing functions.
+- [x] Verify production build and real browser workflows at desktop and small widths; visually inspect screenshots beside references.
 
 ### Task 3: Native lifecycle, packaging and installed smoke
 
@@ -52,15 +52,17 @@ Files: root `package.json`, `src-tauri/**`, `desktop/ui/index.html`, `scripts/bu
 
 Interface: consumes Task 1 launch protocol; bundles `dayframe-server-x86_64-pc-windows-msvc.exe`, frontend and FFmpeg. Native commands from Task 2 validate the active same-origin webview. Test-only `DAYFRAME_DATA_HOME`/`DAYFRAME_SMOKE_STATUS` isolate data and emit nonsecret lifecycle diagnostics for installed-app smoke.
 
-- [ ] Define native window, single instance, readiness/health check, graceful stdin shutdown and Windows process-tree job ownership.
-- [ ] Build a PyInstaller sidecar with frontend, codec runtime and licenses; verify the packaged binary using a disposable archive.
-- [ ] Configure current-user NSIS installation and offline WebView2; run installed smoke including reopen, occupied port and process cleanup.
+- [x] Define native window, single instance, readiness/health check, graceful stdin shutdown and Windows process-tree job ownership.
+- [x] Build a PyInstaller sidecar with frontend, codec runtime and licenses; verify the packaged binary using a disposable archive.
+- [x] Configure current-user NSIS installation and offline WebView2; run installed smoke including reopen, occupied port and process cleanup.
 
 ### Task 4: CI, documentation and release
 
 Files: `.github/workflows/windows-release.yml`, README, Windows install/build/architecture/migration docs, verification record.
 
-- [ ] Preserve original Docker workflow and add independent PR/push/manual Windows build and smoke.
-- [ ] Upload real nonempty installer, SHA256SUMS and verification logs; release only after successful checks, using 1.1.0.
-- [ ] Verify branch changes and tests, commit/push if authentication permits, monitor CI and repair build failures.
-- [ ] Report actual installer bytes/hash/download link or the exact remaining blocker.
+- [x] Preserve original Docker workflow and add independent PR/push/manual Windows build and smoke.
+- [x] Upload real nonempty installer, SHA256SUMS and verification logs; release only after successful checks, using 1.1.0.
+- [x] Verify branch changes and tests, commit/push if authentication permits, monitor CI and repair build failures.
+- [x] Report actual installer bytes/hash/download link or the exact remaining blocker.
+
+Completion evidence (2026-10-28 Asia/Taipei): release v1.1.0, source 3f4c2d4625851d03560d0656033e5aad5c7ed8d5, successful workflow https://github.com/pppel-lg/DayFrame/actions/runs/40547896070, merged PR1. Physical-device and OS-dialog gaps are recorded in docs/VERIFICATION.md.

@@ -6,7 +6,7 @@
 
 面向 **Windows 10/11 x64**，使用当前用户 NSIS 安装器。安装包包含本地服务、前端、FFmpeg 和 WebView2 离线安装程序，日常使用无需 Docker 或开发工具。
 
-在 [Releases](https://github.com/pppel-lg/DayFrame/releases) 查找 `v1.1.0` 的 `DayFrame-1.1.0-windows-x64-setup.exe` 与 `SHA256SUMS`，先核对 SHA-256 再安装。若尚无该版本，请查看 [Windows 构建工作流](https://github.com/pppel-lg/DayFrame/actions/workflows/windows-release.yml) 的实际结果与 artifacts；本文不代表安装包已经发布。此版本未签名，可能出现“未知发布者”或 SmartScreen 提示，详见 [安装说明](docs/WINDOWS_INSTALL.md)。
+下载 [DayFrame-1.1.0-windows-x64-setup.exe](https://github.com/pppel-lg/DayFrame/releases/download/v1.1.0/DayFrame-1.1.0-windows-x64-setup.exe)，在 [v1.1.0 Release](https://github.com/pppel-lg/DayFrame/releases/tag/v1.1.0) 获取 `SHA256SUMS`，先核对 SHA-256 再安装。安装器为 **314,429,906 字节**，已通过 [Windows 构建与安装验收](https://github.com/pppel-lg/DayFrame/actions/runs/40547896070)。此版本未签名，可能出现“未知发布者”或 SmartScreen 提示，详见 [安装说明](docs/WINDOWS_INSTALL.md)。
 
 默认归档位于 `%LOCALAPPDATA%\DayFrame\Archive`，备份、日志、设置分别位于同级 `Backups`、`Logs`、`Settings`。可在设置选择其他目录，验证并保存后重启生效；**更改路径不会自动搬移或合并数据**。首次启动是空归档，不会自动导入个人照片。
 

@@ -2,11 +2,11 @@
 
 DayFrame 1.1.0 的桌面目标平台为 **Windows 10/11 x64**。安装包是 NSIS `.exe`，使用 Tauri v2、系统 WebView2 和打包的本地归档服务；日常使用不需要 Docker、Python、Node.js 或 Rust。
 
-Windows 安装包须以成功的 [Windows desktop build and release 工作流](https://github.com/pppel-lg/DayFrame/actions/workflows/windows-release.yml)及实际附件为准。本文说明安装流程，不代表已经完成发布或在另一台电脑上验收；实际结果见 [验证记录](VERIFICATION.md)。
+Windows 安装包已通过 [正式构建和安装验收](https://github.com/pppel-lg/DayFrame/actions/runs/40547896070) 并发布。实际结果和仍需人工确认的设备能力见 [验证记录](VERIFICATION.md)。
 
 ## 获取和校验
 
-在 [Releases](https://github.com/pppel-lg/DayFrame/releases) 查找 **v1.1.0** 的 `DayFrame-1.1.0-windows-x64-setup.exe` 和 `SHA256SUMS`。若不存在该版本，Windows 版本尚未正式发布；成功的工作流也可在 Artifacts 中提供同名安装包。v1.0.0 的 Linux Docker 镜像包不能当作 Windows 安装器运行。
+在 [v1.1.0 Release](https://github.com/pppel-lg/DayFrame/releases/tag/v1.1.0) 下载 `DayFrame-1.1.0-windows-x64-setup.exe` 和 `SHA256SUMS`。安装包为314,429,906字节；SHA-256为 `6bd6dc92c7458358f299025bd8c61754605e8ac3e1e69fa813f070382c44d91b`。v1.0.0 的 Linux Docker 镜像包用于独立的 Docker 部署方式。
 
 下载后在 PowerShell 中核对摘要：
 

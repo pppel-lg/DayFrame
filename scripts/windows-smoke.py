@@ -353,8 +353,14 @@ def main():
             page = wait_for(lambda: next((p for p in browser.contexts[0].pages if p.url.startswith(f'http://127.0.0.1:{status["port"]}/')), None), label='post-crash reopened webview')
             expect(page.locator('main h1')).to_be_visible()
             assert len(api(page, '/entries/' + day)['photos']) == 2
+            subprocess.run(['taskkill', '/PID', str(status['sidecar_pid']), '/F'], capture_output=True, check=True)
+            expect(page.get_by_role('alert')).to_contain_text('本地档案组件意外停止', timeout=30000)
+            expect(page.get_by_role('button', name='重新打开 DayFrame', exact=True)).to_be_visible()
+            wait_for(lambda: port_closed(status['port']), label='unexpected backend exit closes private API')
+            page.screenshot(path=str(args.output / 'installed-backend-error.png'))
             close_window(process)
             process = None
+        results['checks'].append('unexpected backend exit shows recovery action and native window still closes normally')
         assert (home / 'Archive' / 'archive.json').is_file()
         # Reinstall the real package, then uninstall it, preserving the independent data root.
         subprocess.run(install_args, check=True, timeout=240)

@@ -158,7 +158,21 @@ fn start_backend(app: &tauri::AppHandle) -> Result<(), String> {
 
 fn startup_error(app: &tauri::AppHandle, message: &str) {
     if let Some(window) = app.get_webview_window("main") {
-        let _ = window.eval(&format!("window.dayframeStartupError?.({})", serde_json::to_string(message).unwrap()));
+        // The running React page has no launcher callback. Render the terminal
+        // error in place: navigating to tauri:// on Windows opens an unsupported
+        // external protocol and can block the window's event loop.
+        let _ = window.eval(&format!(r#"(() => {{
+          const message = {};
+          if (typeof window.dayframeStartupError === 'function') {{ window.dayframeStartupError(message); return; }}
+          const panel = document.createElement('main');
+          panel.setAttribute('role', 'alert');
+          Object.assign(panel.style, {{position:'fixed',inset:'0',zIndex:'9999',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'40px',background:'#f8f7f2',color:'#2c352b',textAlign:'center',gap:'24px'}});
+          const heading = document.createElement('h1'); heading.textContent = 'DayFrame';
+          const text = document.createElement('p'); text.textContent = message; text.style.maxWidth = '580px';
+          const restart = document.createElement('button'); restart.textContent = '重新打开 DayFrame'; restart.className = 'primary';
+          restart.onclick = () => window.__TAURI_INTERNALS__.invoke('restart_desktop').catch(() => {{ text.textContent = '请使用窗口右上角关闭 DayFrame，然后重新打开。'; }});
+          panel.append(heading, text, restart); document.body.replaceChildren(panel);
+        }})()"#, serde_json::to_string(message).unwrap()));
     }
     diagnostic(json!({"state":"failed","pid":std::process::id(),"message":message}));
 }
@@ -227,10 +241,6 @@ fn main() {
                         let exited = state.backend.lock().unwrap().as_mut().map(|b| !matches!(b.child.try_wait(), Ok(None))).unwrap_or(true);
                         if exited {
                             shutdown(&handle);
-                            if let Some(window) = handle.get_webview_window("main") {
-                                let _ = window.navigate(tauri::Url::parse("tauri://localhost/index.html").unwrap());
-                                std::thread::sleep(Duration::from_millis(500));
-                            }
                             startup_error(&handle, "本地档案组件意外停止。已保存的照片仍在本地，请关闭并重新打开 DayFrame。");
                             break;
                         }

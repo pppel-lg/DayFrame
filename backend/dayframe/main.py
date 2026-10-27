@@ -2,13 +2,14 @@
 import ipaddress
 import os
 import secrets
+import threading
 from contextlib import asynccontextmanager
 from datetime import date
 from pathlib import Path
 from urllib.parse import urlsplit
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel, ConfigDict
 from starlette.concurrency import run_in_threadpool
 
@@ -64,7 +65,7 @@ class ApproveRequest(BaseModel):
     confirmed: bool
 
 
-def create_app(data_root=None, backup_root=None):
+def create_app(data_root=None, backup_root=None, *, desktop=None, desktop_token=None):
     root = Path(data_root or os.environ.get('DAYFRAME_DATA') or os.environ.get('DAYFRAME_DATA_DIR', './DayframeArchive')).absolute()
     backups = Path(backup_root or os.environ.get('DAYFRAME_BACKUPS') or os.environ.get('DAYFRAME_BACKUP_DIR', './DayframeBackups')).absolute()
 
@@ -89,6 +90,9 @@ def create_app(data_root=None, backup_root=None):
 
     app = FastAPI(title='Dayframe', version='1.0.0', lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     session = secrets.token_urlsafe(32)
+    app.state.desktop = desktop
+    bootstrap_token = desktop_token
+    bootstrap_lock = threading.Lock()
     app.add_middleware(BodyLimit)
 
     @app.middleware('http')
@@ -104,6 +108,11 @@ def create_app(data_root=None, backup_root=None):
             allowed = host_header == 'testserver' and request.client and request.client.host == 'testclient'
         if not allowed:
             return JSONResponse({'detail': 'admin service accepts loopback hostnames only'}, status_code=403)
+        if desktop is None and (request.url.path in ('/desktop', '/api/desktop') or request.url.path.startswith(('/desktop/', '/api/desktop/'))):
+            return JSONResponse({'detail': 'desktop route not found'}, status_code=404)
+        if desktop is not None and request.url.path not in ('/health', '/desktop/launch'):
+            if not secrets.compare_digest(request.cookies.get('dayframe_session', '').encode('utf8'), session.encode('utf8')):
+                return JSONResponse({'detail': 'desktop authentication required'}, status_code=401)
         if request.method not in ('GET', 'HEAD', 'OPTIONS'):
             origin = request.headers.get('origin')
             expected = request.url.scheme+'://'+host_header
@@ -118,7 +127,7 @@ def create_app(data_root=None, backup_root=None):
         response.headers['Referrer-Policy'] = 'no-referrer'
         response.headers['X-Frame-Options'] = 'DENY'
         response.headers['Cache-Control'] = 'no-store'
-        if request.cookies.get('dayframe_session') != session:
+        if desktop is None and request.cookies.get('dayframe_session') != session:
             response.set_cookie('dayframe_session', session, httponly=True, samesite='strict', secure=request.url.scheme == 'https')
         return response
 
@@ -141,6 +150,26 @@ def create_app(data_root=None, backup_root=None):
     @app.get('/health')
     def health():
         return {'status': 'ok', 'version': '1.0.0'}
+
+    if desktop is not None:
+        @app.get('/desktop/launch')
+        def desktop_launch(token: str = ''):
+            nonlocal bootstrap_token
+            with bootstrap_lock:
+                if not bootstrap_token or not secrets.compare_digest(token.encode('utf8'), bootstrap_token.encode('utf8')):
+                    raise HTTPException(403, 'invalid or already used desktop launch token')
+                bootstrap_token = None
+            response = RedirectResponse('/', status_code=303)
+            response.set_cookie('dayframe_session', session, httponly=True, samesite='strict', path='/')
+            return response
+
+        @app.get('/api/desktop')
+        def desktop_status():
+            return desktop.status()
+
+        @app.put('/api/desktop/paths')
+        def desktop_paths(body: dict):
+            return desktop.save_paths(body)
 
     @app.get('/api/status')
     def status():
@@ -256,7 +285,7 @@ def create_app(data_root=None, backup_root=None):
         target = app.state.archive.safe_path('exports/'+path)
         if not target.is_file():
             raise HTTPException(404, 'export not found')
-        return FileResponse(target)
+        return FileResponse(target, filename=target.name)
 
     @app.get('/api/pairing')
     def pairing_status():
@@ -282,10 +311,13 @@ def create_app(data_root=None, backup_root=None):
         app.state.pairing.reject(upload_id)
         return app.state.pairing.status()
 
-    frontend = Path(os.environ.get('FRONTEND_DIST', 'frontend/dist')).absolute()
+    from .desktop import frontend_directory
+    frontend = frontend_directory()
 
     @app.get('/{path:path}')
     def frontend_route(path: str):
+        if path == 'desktop' or path.startswith('desktop/'):
+            raise HTTPException(404, 'desktop route not found')
         if path.startswith('api/') or path == 'api':
             raise HTTPException(404, 'API route not found')
         if path:

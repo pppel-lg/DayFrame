@@ -1,0 +1,184 @@
+name: Windows desktop build and release
+
+on:
+  push:
+    branches: [main, codex/windows-desktop]
+    tags: [v1.1.0]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish a new v1.1.0 release after the installer smoke test
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dayframe-windows-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DESKTOP_VERSION: 1.1.0
+  CARGO_TERM_COLOR: always
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  windows:
+    name: Test, package and run installed Windows application
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+            requirements-desktop.txt
+            requirements-e2e.txt
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+      - name: Prepare verification output and check release version
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts/desktop/logs | Out-Null
+          $package = Get-Content -LiteralPath package.json -Raw | ConvertFrom-Json
+          $tauri = Get-Content -LiteralPath src-tauri/tauri.conf.json -Raw | ConvertFrom-Json
+          if ($package.version -ne $env:DESKTOP_VERSION -or $tauri.version -ne $env:DESKTOP_VERSION) {
+            throw 'Root package and Tauri versions must both match DESKTOP_VERSION.'
+          }
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne "v$env:DESKTOP_VERSION") {
+            throw 'The release tag must match the desktop version.'
+          }
+      - name: Install Python build and test dependencies
+        run: python -m pip install -r requirements-dev.txt -r requirements-desktop.txt -r requirements-e2e.txt
+      - name: Install Chromium for installed application verification
+        run: python -m playwright install chromium
+      - name: Install native shell dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Install frontend dependencies
+        run: npm ci --no-audit --no-fund
+        working-directory: frontend
+      - name: Run backend tests
+        run: |
+          python -m pytest backend/tests -q 2>&1 | Tee-Object -FilePath artifacts/desktop/logs/backend-tests.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Check frontend types
+        run: |
+          npm run typecheck --prefix frontend 2>&1 | Tee-Object -FilePath artifacts/desktop/logs/frontend-types.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build frontend, sidecar and offline Windows installer
+        run: |
+          npm run desktop:build -- --target x86_64-pc-windows-msvc 2>&1 | Tee-Object -FilePath artifacts/desktop/logs/desktop-build.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify the packaged sidecar and bundled FFmpeg
+        run: |
+          python scripts/sidecar-smoke.py --executable src-tauri/binaries/dayframe-server-x86_64-pc-windows-msvc.exe --output artifacts/desktop/sidecar-smoke 2>&1 | Tee-Object -FilePath artifacts/desktop/logs/sidecar-smoke.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Collect the actual NSIS installer
+        run: |
+          $installers = @(Get-ChildItem -LiteralPath src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis -File -Filter '*.exe')
+          if ($installers.Count -ne 1 -or $installers[0].Length -le 0) {
+            throw 'Expected exactly one nonempty NSIS installer from this build.'
+          }
+          $destination = "artifacts/desktop/DayFrame-$env:DESKTOP_VERSION-windows-x64-setup.exe"
+          Copy-Item -LiteralPath $installers[0].FullName -Destination $destination
+          Get-Item -LiteralPath $destination | Select-Object Name, Length | Format-List
+      - name: Install and verify the packaged application
+        run: |
+          python scripts/windows-smoke.py --installer "artifacts/desktop/DayFrame-$env:DESKTOP_VERSION-windows-x64-setup.exe" --output artifacts/desktop/smoke 2>&1 | Tee-Object -FilePath artifacts/desktop/logs/installed-smoke.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Write installer checksum and build identity
+        run: |
+          $filename = "DayFrame-$env:DESKTOP_VERSION-windows-x64-setup.exe"
+          $installer = Get-Item -LiteralPath "artifacts/desktop/$filename"
+          if ($installer.Length -le 0) { throw 'The verified installer is empty.' }
+          $digest = (Get-FileHash -LiteralPath $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$digest  $filename" | Set-Content -LiteralPath artifacts/desktop/SHA256SUMS -Encoding ascii
+          @{
+            version = $env:DESKTOP_VERSION
+            commit = $env:GITHUB_SHA
+            run = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
+            installer = $filename
+            bytes = $installer.Length
+            sha256 = $digest
+          } | ConvertTo-Json | Set-Content -LiteralPath artifacts/desktop/build-info.json -Encoding utf8
+      - name: Upload verified installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: DayFrame-1.1.0-windows-x64
+          path: |
+            artifacts/desktop/DayFrame-1.1.0-windows-x64-setup.exe
+            artifacts/desktop/SHA256SUMS
+            artifacts/desktop/build-info.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload verification logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: DayFrame-1.1.0-windows-verification
+          path: |
+            artifacts/desktop/logs/
+            artifacts/desktop/sidecar-smoke/
+            artifacts/desktop/smoke/
+          if-no-files-found: warn
+          retention-days: 30
+
+  publish:
+    name: Publish new desktop release without replacing existing assets
+    needs: windows
+    if: >-
+      (github.event_name == 'workflow_dispatch' && inputs.publish == true) ||
+      (github.event_name == 'push' && github.ref == 'refs/tags/v1.1.0')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: DayFrame-1.1.0-windows-x64
+          path: artifacts/desktop
+      - name: Verify downloaded release assets
+        working-directory: artifacts/desktop
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s "DayFrame-${DESKTOP_VERSION}-windows-x64-setup.exe"
+          test -s SHA256SUMS
+          sha256sum --check SHA256SUMS
+      - name: Create v1.1.0 only if it does not already exist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="v${DESKTOP_VERSION}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag already exists. Refusing to replace its assets."
+            exit 1
+          fi
+          gh release create "$tag" \
+            "artifacts/desktop/DayFrame-${DESKTOP_VERSION}-windows-x64-setup.exe" \
+            artifacts/desktop/SHA256SUMS \
+            artifacts/desktop/build-info.json \
+            --target "$GITHUB_SHA" \
+            --title "DayFrame ${DESKTOP_VERSION} — Windows desktop" \
+            --notes-file docs/WINDOWS_RELEASE_NOTES.md

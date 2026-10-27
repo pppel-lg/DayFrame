@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "desktop",
+  "description": "Only the managed loopback window may select a directory or restart; Rust also verifies its exact active origin.",
+  "windows": ["main"],
+  "remote": { "urls": ["http://127.0.0.1:*"] },
+  "permissions": ["allow-choose-directory", "allow-restart-desktop"]
+}

@@ -5,6 +5,9 @@ import {
   Check,
   ChevronRight,
   ImagePlus,
+  NotebookPen,
+  Clock3,
+  Plus,
   RefreshCw,
   Square,
   Upload,
@@ -30,6 +33,7 @@ import {
   EntryFields,
   ErrorBanner,
   PageHeader,
+  PanelHeading,
   PhotoView,
   SaveLabel,
   Toggle,
@@ -296,13 +300,8 @@ export default function Today({
   return (
     <>
       <PageHeader
-        title="留下今天的一帧"
-        subtitle={dateLabel(date, {
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-          weekday: "long",
-        })}
+        title="今天，留下一帧"
+        subtitle="用一张照片，一段文字，记录此刻的生活。"
       >
         <span
           className={`today-state ${missingRecord ? "missing" : current ? "complete" : ""}`}
@@ -329,6 +328,11 @@ export default function Today({
       ) : null}
       <div className="today-grid">
         <section className="camera-panel">
+          <PanelHeading
+            icon={<Camera size={25} />}
+            title="拍一张照片"
+            subtitle="定格此刻的光影，留住今天的模样。"
+          />
           <div
             className={`camera-stage ${camera || captureUrl || current ? "has-media" : ""}`}
           >
@@ -385,24 +389,8 @@ export default function Today({
             ) : (
               <div className="camera-empty">
                 <CameraSymbol />
-                <h2>今天，值得被记住</h2>
-                <p>开启相机，为自己留下一帧。</p>
-                <button
-                  className="camera-primary"
-                  disabled={starting}
-                  onClick={() => void startCamera()}
-                >
-                  <Camera size={18} />
-                  {starting ? "正在连接相机…" : "开启相机"}
-                </button>
-                <button
-                  className="camera-import"
-                  disabled={busy}
-                  onClick={() => fileInput.current?.click()}
-                >
-                  <ImagePlus size={18} />
-                  从本地导入
-                </button>
+                <h3>还没有照片</h3>
+                <p>打开摄像头拍摄，或从本地导入照片</p>
               </div>
             )}
             {camera || captureUrl || current ? (
@@ -439,6 +427,25 @@ export default function Today({
               </div>
             ) : null}
           </div>
+          {!camera && !captureUrl && !current ? (
+            <div className="camera-entry-actions">
+              <button
+                className="primary"
+                disabled={starting}
+                onClick={() => void startCamera()}
+              >
+                <Camera size={20} />
+                {starting ? "正在连接相机…" : "打开摄像头"}
+              </button>
+              <button
+                disabled={busy}
+                onClick={() => fileInput.current?.click()}
+              >
+                <ImagePlus size={20} />
+                导入照片
+              </button>
+            </div>
+          ) : null}
           <div className="camera-controls">
             <Toggle
               checked={settings.mirror_preview}
@@ -448,7 +455,7 @@ export default function Today({
                 )
               }
             >
-              镜像预览
+              预览镜像
             </Toggle>
             <Toggle
               checked={settings.mirror_output}
@@ -528,7 +535,11 @@ export default function Today({
             void save();
           }}
         >
-          <h2>此刻的你</h2>
+          <PanelHeading
+            icon={<NotebookPen size={25} />}
+            title="写下今天"
+            subtitle="记录此刻的心情、想法或发生的事情。"
+          />
           {captured && capturedDate && capturedDate !== date ? (
             <p className="small muted">
               这张未保存的照片将保留在拍摄时的记录日期 {capturedDate}
@@ -559,7 +570,7 @@ export default function Today({
                   ? `补记 ${capturedDate} 的一帧`
                   : captured
                     ? "保存今天的一帧"
-                    : "保存今天的记录"}
+                    : "保存记录"}
             </SaveLabel>
           </button>
           {entry && !captured ? (
@@ -571,9 +582,12 @@ export default function Today({
       </div>
       <section className="recent-section">
         <header className="section-heading">
-          <h2>最近七天</h2>
+          <h2>
+            <Clock3 size={23} />
+            最近七天
+          </h2>
           <button className="text-button" onClick={onCalendar}>
-            查看日历 <ChevronRight size={16} />
+            查看完整日历 <ChevronRight size={16} />
           </button>
         </header>
         <div className="recent-strip">
@@ -585,14 +599,23 @@ export default function Today({
                 key={d}
                 onClick={() => onDay(d)}
               >
+                <span>{dateLabel(d, { month: "long", day: "numeric" })}</span>
+                <small>{dateLabel(d, { weekday: "long" })}</small>
                 <div className="recent-image">
-                  <PhotoView photo={primary(e)} alt={`${d} 的照片`} />
+                  {primary(e) ? (
+                    <PhotoView photo={primary(e)} alt={`${d} 的照片`} />
+                  ) : (
+                    <div className="recent-empty">
+                      <Plus size={21} />
+                      <span>
+                        {e?.status === "skipped" ? "休息日" : "暂无记录"}
+                      </span>
+                    </div>
+                  )}
                   {e?.status === "skipped" ? (
                     <span className="rest-label">休息日</span>
                   ) : null}
                 </div>
-                <span>{dateLabel(d, { month: "long", day: "numeric" })}</span>
-                <small>{dateLabel(d, { weekday: "long" })}</small>
               </button>
             );
           })}

@@ -1,5 +1,16 @@
 # 版本记录
 
+## 1.1.0 — Windows 桌面（待实际发布）
+
+- 新增 Tauri v2 原生窗口、PyInstaller 本地服务和 Windows x64 当前用户 NSIS 安装器，包含 WebView2 离线安装程序与 FFmpeg。
+- 随机环回端口、一次性启动认证、同源 React/API、单实例、归档独占和受管进程退出。
+- 数据默认保存于 `%LOCALAPPDATA%\DayFrame` 的独立 Archive、Backups、Logs、Settings；自选路径验证并保存，重启生效，不自动迁移数据。
+- 按参考图调整全部八个页面，保留拍摄、导入、日记、校验备份、导出及主动手机配对；归档格式仍为 1。
+- 独立 Windows CI 构建真实安装器并执行安装后烟雾验证；校验成功才提供发布资产，显式发布门禁拒绝覆盖既有版本。Docker 1.0.0 工作流和附件保持独立。
+- 补充安装、源码构建、桌面架构、迁移及安全边界说明。安装包未签名；真实硬件和干净第二台电脑的限制见验证记录。
+
+以上为代码和交付流程变更，不代表 Windows 构建、发布或所有设备验收已完成。实际结果与下载状态见 [VERIFICATION.md](VERIFICATION.md)。
+
 ## 1.0.0 — 2026-10-27
 
 - 首次 Docker 本地应用交付；React/TypeScript 界面和 FastAPI 本地归档服务。

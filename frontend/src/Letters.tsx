@@ -1,5 +1,13 @@
 import { useState } from "react";
-import { LockKeyhole, Mail, Plus, Send } from "lucide-react";
+import {
+  BookOpen,
+  Check,
+  Hourglass,
+  LockKeyhole,
+  Mail,
+  PenLine,
+  Save,
+} from "lucide-react";
 import {
   dateLabel,
   dateShift,
@@ -9,7 +17,15 @@ import {
   useResource,
 } from "./api";
 import type { Letter } from "./api";
-import { Empty, ErrorBanner, Loading, Modal, PageHeader } from "./ui";
+import {
+  Empty,
+  ErrorBanner,
+  LeafBranch,
+  Loading,
+  Modal,
+  PageHeader,
+  PanelHeading,
+} from "./ui";
 
 export default function Letters({
   revision,
@@ -22,16 +38,17 @@ export default function Letters({
     `/letters?today=${today()}`,
     revision,
   );
-  const [compose, setCompose] = useState(false),
-    [opened, setOpened] = useState<Letter | null>(null),
+  const [opened, setOpened] = useState<Letter | null>(null),
     [title, setTitle] = useState(""),
     [content, setContent] = useState(""),
     [unlock, setUnlock] = useState(dateShift(today(), 365)),
     [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [saved, setSaved] = useState(false);
   async function create() {
     setBusy(true);
     setError("");
+    setSaved(false);
     try {
       await send("/letters", {
         title,
@@ -39,9 +56,9 @@ export default function Letters({
         unlock_date: unlock,
         created_on_date: today(),
       });
-      setCompose(false);
       setTitle("");
       setContent("");
+      setSaved(true);
       onChange();
     } catch (e) {
       setError(errorText(e));
@@ -49,92 +66,46 @@ export default function Letters({
       setBusy(false);
     }
   }
+  const letters = result.data?.letters || [];
   return (
     <>
       <PageHeader
-        title="寄给未来的自己"
-        subtitle="把此刻的想法封好，在约定的日子再打开。"
-      >
-        <button
-          className="primary"
-          onClick={() => {
-            setError("");
-            setCompose(true);
-          }}
-        >
-          <Plus size={17} />
-          写一封信
-        </button>
-      </PageHeader>
+        title="未来信件"
+        subtitle="写一封信给未来的自己，在某个特别的日子，与未来重逢。"
+      />
       <ErrorBanner message={result.error} retry={() => void result.reload()} />
-      {result.loading ? (
-        <Loading />
-      ) : !result.data?.letters.length ? (
-        <Empty title="未来的信箱，等你投递" icon={<Mail size={32} />}>
-          <p>写一封信，送给半年、一年，或更久以后的自己。</p>
-          <button className="text-button" onClick={() => setCompose(true)}>
-            开始写信 <Send size={15} />
-          </button>
-        </Empty>
-      ) : (
-        <div className="letter-list">
-          {result.data.letters.map((letter) => (
-            <button
-              className={`letter ${letter.locked ? "locked" : ""}`}
-              key={letter.letter_id}
-              onClick={() => {
-                if (!letter.locked) setOpened(letter);
-              }}
-              disabled={letter.locked}
-            >
-              <div className="letter-icon">
-                {letter.locked ? <LockKeyhole size={22} /> : <Mail size={22} />}
-              </div>
-              <div>
-                <h2>{letter.title}</h2>
-                <p>
-                  {letter.locked ? "将在" : "已于"}{" "}
-                  {dateLabel(letter.unlock_date, {
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                  })}{" "}
-                  开启
-                </p>
-              </div>
-              <span className="letter-state">
-                {letter.locked ? "等待约定的日子" : "打开信件"}
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
-      <p className="small muted letter-note">
-        信件保存在本地归档中，未到日期时应用不展示正文。它是温柔的约定，并非加密保险箱。
-      </p>
-      {compose ? (
-        <Modal
-          title="写给未来的自己"
-          onClose={() => {
-            if (!busy) setCompose(false);
+      <div className="letters-layout">
+        <form
+          className="letter-composer"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void create();
           }}
         >
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              void create();
-            }}
-          >
-            <ErrorBanner message={error} />
+          <PanelHeading
+            icon={<PenLine size={25} />}
+            title="写一封未来信"
+            subtitle="记录此刻的心情、想法或对未来的期许。"
+          />
+          <ErrorBanner message={error} />
+          {saved ? (
+            <p className="success" role="status">
+              <Check size={17} />
+              信件已保存，等待约定的日子。
+            </p>
+          ) : null}
+          <fieldset disabled={busy}>
             <label className="field">
-              信件标题
+              标题
               <input
+                aria-label="标题"
                 required
                 value={title}
                 maxLength={200}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="那时的你，还好吗？"
+                placeholder="给未来的我…"
               />
+              <span className="char-count">{title.length} / 200</span>
             </label>
             <label className="field">
               开启日期
@@ -146,24 +117,103 @@ export default function Letters({
                 onChange={(e) => setUnlock(e.target.value)}
               />
             </label>
-            <label className="field">
-              想对未来的自己说
+            <label className="field letter-content-field">
+              信件内容
               <textarea
+                aria-label="信件内容"
                 required
                 value={content}
                 maxLength={50000}
                 onChange={(e) => setContent(e.target.value)}
-                rows={10}
-                placeholder="亲爱的自己，"
+                rows={12}
+                placeholder={
+                  "此刻的你在想什么？\n可以是对未来的期待、对自己的鼓励，\n也可以是想要记住的心情、愿望或问题……"
+                }
               />
+              <span className="char-count">{content.length} / 50000</span>
             </label>
             <button className="primary full" disabled={busy}>
-              <Send size={16} />
-              {busy ? "正在封好信件…" : "封好，寄给未来"}
+              <Save size={20} />
+              {busy ? "正在保存信件…" : "保存信件"}
             </button>
-          </form>
-        </Modal>
-      ) : null}
+          </fieldset>
+          <p className="letter-note">
+            <LockKeyhole size={16} />
+            信件保存在本地，到设定日期后可在这里阅读。归档为明文文件，并未加密。
+          </p>
+        </form>
+        <div className="letter-groups">
+          {result.loading ? (
+            <Loading />
+          ) : (
+            [true, false].map((locked) => {
+              const group = letters.filter(
+                (letter) => letter.locked === locked,
+              );
+              return (
+                <section className="letter-group" key={String(locked)}>
+                  <PanelHeading
+                    icon={
+                      locked ? <Hourglass size={24} /> : <BookOpen size={24} />
+                    }
+                    title={`${locked ? "未开启" : "今天可阅读"}（${group.length}）`}
+                  />
+                  {group.length ? (
+                    <div className="letter-list">
+                      {group.map((letter) => (
+                        <button
+                          className={`letter ${letter.locked ? "locked" : "readable"}`}
+                          key={letter.letter_id}
+                          onClick={() => setOpened(letter)}
+                          disabled={letter.locked}
+                        >
+                          <div className="letter-icon">
+                            <Mail size={30} />
+                            <LeafBranch />
+                          </div>
+                          <div className="letter-text">
+                            <h2>{letter.title}</h2>
+                            <p>
+                              {locked
+                                ? "正文留待约定的日子开启。"
+                                : letter.content?.slice(0, 60)}
+                            </p>
+                            <time>
+                              {dateLabel(letter.unlock_date, {
+                                year: "numeric",
+                                month: "long",
+                                day: "numeric",
+                              })}
+                            </time>
+                          </div>
+                          <span className="letter-state">
+                            {locked ? "未开启" : "今天可阅读"}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <Empty
+                      title={
+                        locked ? "未来的信箱，等你投递" : "还没有到约定的日子"
+                      }
+                      icon={
+                        locked ? <Mail size={28} /> : <BookOpen size={28} />
+                      }
+                    >
+                      <p>
+                        {locked
+                          ? "写一封信，送给半年、一年，或更久以后的自己。"
+                          : "当信件的开启日期到来，就可以在这里重读。"}
+                      </p>
+                    </Empty>
+                  )}
+                </section>
+              );
+            })
+          )}
+        </div>
+      </div>
       {opened ? (
         <Modal title={opened.title} onClose={() => setOpened(null)}>
           <p className="small muted">

@@ -133,6 +133,7 @@ export default function DayDetail({
                 <a
                   className="button"
                   href={`/api/photos/${chosen.photo_id}?download=true`}
+                  download
                 >
                   <Download size={16} />
                   下载原图

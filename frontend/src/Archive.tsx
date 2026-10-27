@@ -5,6 +5,8 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
+  MapPin,
+  NotebookPen,
   Search,
 } from "lucide-react";
 import {
@@ -37,6 +39,7 @@ function MonthGrid({
   onDay,
   monday,
   mini = false,
+  selected,
 }: {
   year: number;
   month: number;
@@ -44,6 +47,7 @@ function MonthGrid({
   onDay: (date: string) => void;
   monday: boolean;
   mini?: boolean;
+  selected?: string;
 }) {
   const first = monthStart(year, month);
   const weekday = new Date(`${first}T12:00:00`).getDay();
@@ -77,7 +81,7 @@ function MonthGrid({
               key={d}
               disabled={future || (mini && outside)}
               title={`${d} ${missing ? "原图缺失，待恢复" : valid ? "已记录" : entry?.status === "skipped" ? "已跳过" : "尚未记录"}`}
-              className={`date-cell ${outside ? "outside" : ""} ${future ? "future" : ""} ${d === today() ? "current" : ""} ${missing ? "missing" : entry?.status || ""}`}
+              className={`date-cell ${outside ? "outside" : ""} ${future ? "future" : ""} ${d === today() ? "current" : ""} ${selected === d ? "selected" : ""} ${missing ? "missing" : entry?.status || ""}`}
               onClick={() => onDay(d)}
             >
               <span className="date-number">{Number(d.slice(-2))}</span>
@@ -115,7 +119,9 @@ export function Calendar({
   const now = new Date(),
     [year, setYear] = useState(now.getFullYear()),
     [month, setMonth] = useState(now.getMonth()),
-    [view, setView] = useState<"month" | "year">("month");
+    [view, setView] = useState<"month" | "year">("month"),
+    [selected, setSelected] = useState(today()),
+    [filter, setFilter] = useState("all");
   const start = view === "year" ? `${year}-01-01` : monthStart(year, month),
     end = view === "year" ? `${year}-12-31` : monthEnd(year, month);
   const entries = useResource<{ entries: Entry[] }>(
@@ -135,11 +141,23 @@ export function Calendar({
     setYear(d.getFullYear());
     setMonth(d.getMonth());
   }
+  const all = entries.data?.entries || [];
+  const selection = selected.startsWith(start.slice(0, 7)) ? selected : start;
+  const selectedEntry = all.find((e) => e.record_date === selection);
+  const filtered = all.filter((e) =>
+    filter === "photos"
+      ? !!primary(e)
+      : filter === "notes"
+        ? !!e.note
+        : filter === "places"
+          ? !!e.location?.city
+          : true,
+  );
   return (
     <>
       <PageHeader
-        title="日子，一格一格"
-        subtitle="有记录的日子值得珍藏，留白的日子也很好。"
+        title="日历"
+        subtitle="浏览每月的记录，重温那些值得珍藏的日子。"
       >
         <div className="segmented">
           <button
@@ -163,7 +181,6 @@ export function Calendar({
           void stats.reload();
         }}
       />
-      <StatsBar stats={stats.data} />
       <div className="calendar-toolbar">
         <div className="button-row">
           <button
@@ -184,6 +201,23 @@ export function Calendar({
             <ChevronRight size={20} />
           </button>
         </div>
+        <div className="calendar-filters">
+          {[
+            ["all", "全部", all.length],
+            ["photos", "有照片", all.filter((e) => primary(e)).length],
+            ["notes", "有文字", all.filter((e) => e.note).length],
+            ["places", "有地点", all.filter((e) => e.location?.city).length],
+          ].map(([value, label, count]) => (
+            <button
+              key={value}
+              className={filter === value ? "active" : ""}
+              onClick={() => setFilter(String(value))}
+            >
+              {label}
+              <span>{count}</span>
+            </button>
+          ))}
+        </div>
         <button
           onClick={() => {
             setYear(now.getFullYear());
@@ -196,13 +230,63 @@ export function Calendar({
       {entries.loading ? (
         <Loading />
       ) : view === "month" ? (
-        <MonthGrid
-          year={year}
-          month={month}
-          entries={entries.data?.entries || []}
-          onDay={onDay}
-          monday={settings.week_starts_monday}
-        />
+        <div className="calendar-layout">
+          <div>
+            <MonthGrid
+              year={year}
+              month={month}
+              entries={filtered}
+              selected={selection}
+              onDay={setSelected}
+              monday={settings.week_starts_monday}
+            />
+            <StatsBar stats={stats.data} />
+          </div>
+          <aside className="selected-day-panel">
+            <header>
+              <h2>
+                {dateLabel(selection, {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })}
+              </h2>
+              <span>{dateLabel(selection, { weekday: "long" })}</span>
+            </header>
+            <div className="selected-day-photo">
+              <PhotoView photo={primary(selectedEntry)} />
+            </div>
+            {selectedEntry ? (
+              <>
+                <div className="selected-day-mood">
+                  <span>心情</span>
+                  <strong>{moodLabel(selectedEntry.mood) || "未填写"}</strong>
+                </div>
+                <div className="selected-day-note">
+                  <span>日记</span>
+                  <p>{selectedEntry.note || "这一天还没有写下文字。"}</p>
+                </div>
+                <div className="selected-day-location">
+                  <MapPin size={17} />
+                  {selectedEntry.location?.city || "未填写城市"}
+                </div>
+                <div className="tags">
+                  {selectedEntry.tags.map((tag) => (
+                    <span key={tag}>{tag}</span>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <p className="muted">
+                这一天还没有记录。可以添加照片，或留下一段文字。
+              </p>
+            )}
+            <button className="primary full" onClick={() => onDay(selection)}>
+              <NotebookPen size={18} />
+              {selectedEntry ? "查看详情与管理照片" : "记录这一天"}
+            </button>
+          </aside>
+        </div>
       ) : (
         <div className="year-grid">
           {Array.from({ length: 12 }, (_, i) => (
@@ -228,6 +312,7 @@ export function Calendar({
           ))}
         </div>
       )}
+      {view === "year" ? <StatsBar stats={stats.data} /> : null}
       <div className="calendar-legend">
         <span>
           <i className="recorded" />
@@ -301,8 +386,8 @@ export function Timeline({
   return (
     <>
       <PageHeader
-        title="沿着时间，看看自己"
-        subtitle="每一帧和每一句话，都有它的位置。"
+        title="时间轴"
+        subtitle="按时间顺序，回顾生活中的每一个瞬间。"
       />
       <form
         className="filter-bar"
@@ -404,6 +489,16 @@ export function Timeline({
                 className="timeline-card"
                 onClick={() => onDay(e.record_date)}
               >
+                <div className="timeline-date">
+                  <time>
+                    {dateLabel(e.record_date, {
+                      month: "long",
+                      day: "numeric",
+                    })}
+                  </time>
+                  <small>{dateLabel(e.record_date, { weekday: "long" })}</small>
+                  <span>{e.record_date.slice(0, 4)}</span>
+                </div>
                 <div className="timeline-photo">
                   <PhotoView
                     photo={primary(e)}
@@ -414,13 +509,13 @@ export function Timeline({
                   ) : null}
                 </div>
                 <div className="timeline-content">
-                  <time>
-                    {dateLabel(e.record_date, {
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric",
-                    })}
-                  </time>
+                  <h2>
+                    {e.note
+                      ? e.note.split(/[。！？\n]/)[0].slice(0, 32)
+                      : e.status === "skipped"
+                        ? "留给生活的一天"
+                        : "这一天的一帧"}
+                  </h2>
                   <span className="small muted">
                     {[moodLabel(e.mood), e.location?.city]
                       .filter(Boolean)
@@ -434,6 +529,10 @@ export function Timeline({
                       ))}
                     </div>
                   ) : null}
+                  <span className="timeline-open">
+                    {e.photos.filter((p) => !p.trashed_at_utc).length} 张照片{" "}
+                    <ChevronRight size={16} /> 查看当天
+                  </span>
                 </div>
               </button>
             ))}

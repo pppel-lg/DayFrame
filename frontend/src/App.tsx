@@ -1,7 +1,6 @@
 import { Component, useCallback, useEffect, useRef, useState } from "react";
 import type { ErrorInfo, ReactNode } from "react";
 import {
-  Archive,
   ArrowDownToLine,
   Bell,
   CalendarDays,
@@ -9,15 +8,16 @@ import {
   ChevronDown,
   ChevronUp,
   CircleAlert,
-  Clock3,
   Frame,
   HardDrive,
-  Heart,
   Home,
   Loader2,
   Mail,
   MapPin,
   Menu,
+  Image as ImageIcon,
+  ChartNoAxesColumnIncreasing,
+  List,
   Settings as SettingsIcon,
   ShieldCheck,
   X,
@@ -30,16 +30,16 @@ import { Calendar, Timeline } from "./Archive";
 import { Locations, Memories, Report } from "./Memories";
 import Letters from "./Letters";
 import Settings from "./Settings";
-import { ErrorBanner, Loading } from "./ui";
+import { ErrorBanner, LeafBranch, Loading, SproutMark } from "./ui";
 
 const pages = [
   { id: "today", label: "今日", icon: Home },
   { id: "calendar", label: "日历", icon: CalendarDays },
-  { id: "timeline", label: "时间轴", icon: Clock3 },
-  { id: "memories", label: "回忆", icon: Heart },
+  { id: "timeline", label: "时间轴", icon: List },
+  { id: "memories", label: "回忆", icon: ImageIcon },
   { id: "locations", label: "足迹", icon: MapPin },
   { id: "letters", label: "未来信件", icon: Mail },
-  { id: "report", label: "年度报告", icon: Archive },
+  { id: "report", label: "年度报告", icon: ChartNoAxesColumnIncreasing },
   { id: "settings", label: "设置", icon: SettingsIcon },
 ];
 const names: Record<string, string> = {
@@ -165,14 +165,18 @@ function JobPanel({
                   <div className="job-result">
                     {typeof job.result.url === "string" &&
                     job.result.url.startsWith("/api/exports/") ? (
-                      <a href={job.result.url} className="text-button">
+                      <a href={job.result.url} className="text-button" download>
                         <ArrowDownToLine size={15} />
                         打开或下载结果
                       </a>
                     ) : null}
                     {typeof job.result.csv_url === "string" &&
                     job.result.csv_url.startsWith("/api/exports/") ? (
-                      <a href={job.result.csv_url} className="text-button">
+                      <a
+                        href={job.result.csv_url}
+                        className="text-button"
+                        download
+                      >
                         <ArrowDownToLine size={15} />
                         下载 CSV 数据
                       </a>
@@ -345,8 +349,9 @@ function App() {
           aria-label="Dayframe 今日"
           onClick={() => setMobile(false)}
         >
-          <Frame size={26} strokeWidth={1.6} />
+          <SproutMark />
           <span>dayframe</span>
+          <small>用影像记录生活</small>
         </a>
         <nav aria-label="主导航">
           {pages.map(({ id, label, icon: Icon }) => (
@@ -362,10 +367,18 @@ function App() {
             </a>
           ))}
         </nav>
+        <div className="sidebar-poem">
+          <p>
+            每一帧，
+            <br />
+            都是生活的答案。
+          </p>
+          <LeafBranch />
+        </div>
         <div className="sidebar-bottom">
           <HardDrive size={17} />
           <div>
-            仅存储在你的设备<span>每一天，都属于你。</span>
+            仅存储在你的设备<span>本地保存，隐私安全</span>
           </div>
         </div>
       </aside>

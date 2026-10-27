@@ -4,6 +4,8 @@ import App, { ErrorBoundary } from "./App";
 import "@fontsource/noto-sans-sc/400.css";
 import "@fontsource/noto-sans-sc/500.css";
 import "@fontsource/noto-sans-sc/600.css";
+import "@fontsource/noto-serif-sc/600.css";
+import "@fontsource/noto-serif-sc/700.css";
 import "./styles.css";
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

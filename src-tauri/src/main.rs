@@ -65,10 +65,21 @@ fn diagnostic(value: serde_json::Value) {
     }
 }
 
+fn lifecycle_trace(event: &str) {
+    if let Some(path) = std::env::var_os("DAYFRAME_SMOKE_STATUS") {
+        let path = PathBuf::from(path).with_file_name("native-events.log");
+        if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+            let _ = writeln!(file, "{} {}", std::process::id(), event);
+        }
+    }
+}
+
 fn shutdown(app: &tauri::AppHandle) {
+    lifecycle_trace("shutdown-enter");
     let state = app.state::<DesktopState>();
     state.closing.store(true, Ordering::SeqCst);
     let backend = state.backend.lock().unwrap().take();
+    lifecycle_trace(if backend.is_some() { "shutdown-owned-backend" } else { "shutdown-no-backend" });
     if let Some(mut backend) = backend {
         if let Some(mut pipe) = backend.input.take() { let _ = pipe.write_all(b"\n"); }
         let start = Instant::now();
@@ -85,6 +96,7 @@ fn shutdown(app: &tauri::AppHandle) {
         let _ = backend.child.wait();
     }
     diagnostic(json!({"state":"stopped","pid":std::process::id()}));
+    lifecycle_trace("shutdown-finished");
 }
 
 fn sidecar_path() -> Result<PathBuf, String> {
@@ -223,10 +235,11 @@ fn main() {
             let window = builder.build()?;
             window.on_window_event({ let app = handle.clone(); move |event| {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    lifecycle_trace("window-close-request");
                     api.prevent_close();
-                    if app.state::<DesktopState>().exit_started.swap(true, Ordering::SeqCst) { return; }
+                    if app.state::<DesktopState>().exit_started.swap(true, Ordering::SeqCst) { lifecycle_trace("window-close-already-owned"); return; }
                     let app = app.clone();
-                    std::thread::spawn(move || { shutdown(&app); app.exit(0); });
+                    std::thread::spawn(move || { shutdown(&app); lifecycle_trace("window-close-exit-call"); app.exit(0); });
                 }
             }});
             std::thread::spawn(move || {
@@ -250,5 +263,5 @@ fn main() {
             Ok(())
         })
         .build(tauri::generate_context!()).expect("DayFrame native window initialization failed");
-    app.run(|app, event| { if let tauri::RunEvent::ExitRequested { .. } = event { shutdown(app); } });
+    app.run(|app, event| { if let tauri::RunEvent::ExitRequested { .. } = event { lifecycle_trace("runtime-exit-request"); shutdown(app); lifecycle_trace("runtime-exit-return"); } });
 }

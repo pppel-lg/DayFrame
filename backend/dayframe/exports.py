@@ -7,8 +7,10 @@ import io
 import os
 import shutil
 import subprocess
+import sys
 import uuid
 from datetime import date
+from pathlib import Path
 
 from PIL import Image, ImageOps
 
@@ -96,10 +98,25 @@ def report(archive, year, include_notes=False, progress=None):
     return {'url': '/api/exports/'+relative, 'stats': stats}
 
 
-def video(archive, start, end, fps=5, progress=None):
+def ffmpeg_binary():
+    explicit = os.environ.get('DAYFRAME_FFMPEG')
+    if explicit:
+        path = Path(explicit)
+        if not path.is_file():
+            raise ValueError('configured FFmpeg is unavailable; check DAYFRAME_FFMPEG')
+        return str(path)
+    if getattr(sys, '_MEIPASS', None):
+        path = Path(sys._MEIPASS) / 'bin' / 'ffmpeg.exe'
+        if path.is_file():
+            return str(path)
     ffmpeg = shutil.which('ffmpeg')
     if not ffmpeg:
         raise ValueError('FFmpeg is unavailable; install a build with the libx264 encoder, then retry')
+    return ffmpeg
+
+
+def video(archive, start, end, fps=5, progress=None):
+    ffmpeg = ffmpeg_binary()
     start, end = local_date(start), local_date(end)
     if start > end:
         raise ValueError('start must not exceed end')

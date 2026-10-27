@@ -1,0 +1,9 @@
+[[permission]]
+identifier = "allow-choose-directory"
+description = "Select a directory using the native picker"
+commands.allow = ["choose_directory"]
+
+[[permission]]
+identifier = "allow-restart-desktop"
+description = "Restart the managed application after path changes"
+commands.allow = ["restart_desktop"]

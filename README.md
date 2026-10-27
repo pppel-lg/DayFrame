@@ -1,8 +1,18 @@
-# Dayframe 1.0
+# DayFrame
 
 每天留下一帧，慢慢看见自己。一个默认离线、由你保管原图的个人自拍与日记档案。
 
-## 运行
+## Windows 桌面版 1.1.0
+
+面向 **Windows 10/11 x64**，使用当前用户 NSIS 安装器。安装包包含本地服务、前端、FFmpeg 和 WebView2 离线安装程序，日常使用无需 Docker 或开发工具。
+
+在 [Releases](https://github.com/pppel-lg/DayFrame/releases) 查找 `v1.1.0` 的 `DayFrame-1.1.0-windows-x64-setup.exe` 与 `SHA256SUMS`，先核对 SHA-256 再安装。若尚无该版本，请查看 [Windows 构建工作流](https://github.com/pppel-lg/DayFrame/actions/workflows/windows-release.yml) 的实际结果与 artifacts；本文不代表安装包已经发布。此版本未签名，可能出现“未知发布者”或 SmartScreen 提示，详见 [安装说明](docs/WINDOWS_INSTALL.md)。
+
+默认归档位于 `%LOCALAPPDATA%\DayFrame\Archive`，备份、日志、设置分别位于同级 `Backups`、`Logs`、`Settings`。可在设置选择其他目录，验证并保存后重启生效；**更改路径不会自动搬移或合并数据**。首次启动是空归档，不会自动导入个人照片。
+
+[Windows 安装](docs/WINDOWS_INSTALL.md) · [源码构建](docs/WINDOWS_BUILD.md) · [Docker 数据迁移](docs/WINDOWS_MIGRATION.md) · [桌面架构](docs/DESKTOP_ARCHITECTURE.md) · [实际验证与限制](docs/VERIFICATION.md)
+
+## Docker 1.0.0 运行
 
 安装并启动 Docker Desktop（Windows 使用 Linux containers），下载本仓库后：
 
@@ -14,7 +24,7 @@ docker compose up -d
 
 Windows 也可执行 `./scripts/start.ps1`，本地构建用 `./scripts/start.ps1 -Build`。界面和摄像头必须在本机 `localhost` 下打开。普通局域网 HTTP 不提供浏览器实时摄像头安全上下文。
 
-## 数据在哪里
+## Docker 数据在哪里
 
 默认使用 Docker 命名卷 `dayframe_archive` 和 `dayframe_backups`，容器内分别为 `/data`、`/backups`。升级、删除或重建容器不会删除卷；**不要执行 `docker compose down -v`**，它会删除卷及其中的数据。
 
@@ -35,12 +45,14 @@ Windows 也可执行 `./scripts/start.ps1`，本地构建用 `./scripts/start.ps
 - 不可变原图、开放 JSON sidecar、SQLite 可重建索引、完整性检查及回收站。
 - 带全量 SHA-256 清单的独立备份，恢复至新目录，导出可离线阅读的日历。
 - 往年同日回忆、日期对比、地点回顾、未来信件和年度 HTML 报告。
-- 容器中包含 FFmpeg，用每个日期的一张主图制作视频；不覆盖源文件。
+- 桌面包与容器均包含 FFmpeg，用每个日期的一张主图制作视频；不覆盖源文件。
 - 手机临时配对、上传暂存、电脑确认入库。默认不启动上传监听。
 
 年报选择 HTML 导出，PDF 可用浏览器“打印 → 另存为 PDF”。地图采用离线地点列表，不调用第三方瓦片。未来信件是界面时间锁，磁盘中的 JSON 未加密。
 
 ## 手机上传（可选）
+
+桌面版直接在设置中主动开启临时配对；不自动修改防火墙。以下 Compose 命令仅适用于 Docker 部署。
 
 ```powershell
 docker compose -f compose.yaml -f compose.phone.yaml up -d
@@ -62,9 +74,11 @@ Windows 登录启动是明确选择的宿主机操作，容器不会修改系统
 ./scripts/login-startup.ps1 -Remove
 ```
 
-Docker Desktop 本身也需要开启登录启动。此版本是 Docker 本地应用，不提供 Tauri/Windows MSI 安装包。
+Docker Desktop 本身也需要开启登录启动。上述脚本是 Docker 辅助工具；桌面安装器不自动添加登录启动项。
 
-## 本地开发
+## 本地 Web/Docker 开发
+
+Windows Tauri 与安装器构建见 [WINDOWS_BUILD.md](docs/WINDOWS_BUILD.md)。以下保留原有浏览器服务开发方式。
 
 Python 3.12+、Node 22+：
 
@@ -88,6 +102,8 @@ docker build -t dayframe:local .
 
 CI 会实际构建 Linux 镜像、启动容器、运行导入/编辑/索引重建/校验/备份/导出检查，然后发布到 GHCR，并为首次成功的 1.0.0 发布附上可 `docker load` 的镜像文件和校验清单。
 
+独立 Windows CI 执行后端测试、前端类型检查、x64 NSIS 构建和安装后真实应用烟雾验证，成功后上传安装包、SHA-256 和日志。创建 v1.1.0 Release 需要明确的手动发布选项或匹配版本标签，且已存在的版本不会被替换；v1.0.0 Docker 附件保持独立。
+
 可选浏览器回归：安装 `requirements-e2e.txt` 并执行 `python -m playwright install chromium`，在**专门的空测试归档**上启动服务后运行 `python scripts/browser-smoke.py`、`python scripts/browser-edge-smoke.py`。这些脚本会写入合成测试照片，不要对正式个人归档执行。
 
 ## 文档
@@ -95,9 +111,14 @@ CI 会实际构建 Linux 镜像、启动容器、运行导入/编辑/索引重�
 - [归档协议](docs/ARCHIVE_FORMAT.md)
 - [备份、恢复、迁移](docs/BACKUP_RESTORE.md)
 - [隐私和安全边界](docs/SECURITY.md)
+- [Windows 安装](docs/WINDOWS_INSTALL.md)
+- [Windows 源码构建](docs/WINDOWS_BUILD.md)
+- [桌面架构](docs/DESKTOP_ARCHITECTURE.md)
+- [Docker 与 Windows 迁移](docs/WINDOWS_MIGRATION.md)
 - [测试记录与已知限制](docs/VERIFICATION.md)
 - [API 契约](docs/API.md)
+- [第三方依赖与许可](docs/THIRD_PARTY.md)
 - [版本记录](docs/CHANGELOG.md)
 - [原始需求](Dayframe.md)
 
-原始需求中的 Tauri 是建议技术栈。本次用户明确要求 Docker 交付，架构决策记录在 [设计说明](docs/superpowers/specs/2026-10-27-dayframe-design.md) 中；长期数据协议与安全要求保持为产品基线。
+Docker 1.0.0 的架构记录见 [原版设计](docs/superpowers/specs/2026-10-27-dayframe-design.md)，Windows 1.1.0 的运行与打包方案见 [桌面设计](docs/superpowers/specs/2026-10-27-windows-desktop-design.md)。两者保持相同的归档协议与数据安全基线。

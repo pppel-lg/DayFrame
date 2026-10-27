@@ -1,5 +1,17 @@
-import { useState } from "react";
-import { ArrowRight, Film, Heart, MapPin } from "lucide-react";
+import { useMemo, useState } from "react";
+import {
+  ArrowRight,
+  CalendarDays,
+  FileDown,
+  Film,
+  Flame,
+  Heart,
+  Image as ImageIcon,
+  MapPin,
+  Printer,
+  Smile,
+  Tag,
+} from "lucide-react";
 import {
   dateLabel,
   dateShift,
@@ -14,8 +26,8 @@ import {
   ErrorBanner,
   Loading,
   PageHeader,
+  PanelHeading,
   PhotoView,
-  StatsBar,
   Toggle,
 } from "./ui";
 
@@ -54,12 +66,12 @@ export function Memories({
   return (
     <>
       <PageHeader
-        title="与过去的自己，见一面"
-        subtitle="时间没有声音，照片记得。"
+        title="回忆"
+        subtitle="在同一天，遇见过去的自己，看看时光里留下的不同风景。"
       />
       <section className="content-section">
         <header className="section-heading">
-          <h2>往年的今天</h2>
+          <h2>往年同日</h2>
           <input
             aria-label="回忆日期"
             type="date"
@@ -92,7 +104,15 @@ export function Memories({
                     day: "numeric",
                   })}
                 </time>
+                <span className="memory-mood">{moodLabel(e.mood)}</span>
                 <p>{e.note}</p>
+                <div className="memory-meta">
+                  <span>
+                    <ImageIcon size={15} />
+                    {e.photos.filter((p) => !p.trashed_at_utc).length} 张照片
+                  </span>
+                  <span>{e.tags.slice(0, 2).join("、")}</span>
+                </div>
               </button>
             ))}
           </div>
@@ -109,7 +129,7 @@ export function Memories({
       </section>
       <section className="content-section">
         <header className="section-heading">
-          <h2>把两个时刻，并排放好</h2>
+          <h2>日期对比</h2>
         </header>
         <ErrorBanner message={a.error || b.error} />
         <div className="compare-grid">
@@ -137,6 +157,14 @@ export function Memories({
                   />
                 </div>
               )}
+              {item.result.data?.entries[0] ? (
+                <div className="compare-description">
+                  <strong>{moodLabel(item.result.data.entries[0].mood)}</strong>
+                  <p>
+                    {item.result.data.entries[0].note || "这一天没有写下文字。"}
+                  </p>
+                </div>
+              ) : null}
               <button className="text-button" onClick={() => onDay(item.date)}>
                 查看这一天 <ArrowRight size={14} />
               </button>
@@ -226,8 +254,8 @@ export function Locations({
   return (
     <>
       <PageHeader
-        title="走过的地方，留下的自己"
-        subtitle="用城市记住旅程。地点列表离线可用，不加载第三方地图。"
+        title="足迹"
+        subtitle="用城市记住旅程，收藏每一处生活留下的坐标。"
       >
         <input
           aria-label="足迹年份"
@@ -303,19 +331,83 @@ export function Report({
     [notes, setNotes] = useState(false),
     [busy, setBusy] = useState(false);
   const stats = useResource<Stats>(
-      `/stats?start=${year}-01-01&end=${year}-12-31&today=${today()}`,
-      revision,
-    ),
-    photos = useResource<{ entries: Entry[] }>(
-      `/entries?start=${year}-01-01&end=${year}-12-31&limit=12`,
-      revision,
+    `/stats?start=${year}-01-01&end=${year}-12-31&today=${today()}`,
+    revision,
+  );
+  const records = useResource<{ entries: Entry[] }>(
+    `/entries?start=${year}-01-01&end=${year}-12-31&limit=400`,
+    revision,
+  );
+  const analysis = useMemo(() => {
+    const entries = records.data?.entries || [];
+    const valid = entries.filter(
+      (entry) => primary(entry) && !primary(entry)?.missing,
     );
-  const max = Math.max(1, ...(stats.data?.monthly.map((m) => m.count) || []));
+    const tags = new Map<string, number>(),
+      cities = new Map<string, number>();
+    for (const entry of entries) {
+      for (const tag of new Set(entry.tags))
+        tags.set(tag, (tags.get(tag) || 0) + 1);
+      const city = entry.location?.city || entry.location?.label;
+      if (city) cities.set(city, (cities.get(city) || 0) + 1);
+    }
+    let longest = 0,
+      streak = 0,
+      previous = "";
+    for (const entry of [...valid].sort((a, b) =>
+      a.record_date.localeCompare(b.record_date),
+    )) {
+      streak =
+        previous && dateShift(previous, 1) === entry.record_date
+          ? streak + 1
+          : 1;
+      longest = Math.max(longest, streak);
+      previous = entry.record_date;
+    }
+    return {
+      valid,
+      map: new Map(valid.map((entry) => [entry.record_date, entry])),
+      tags: [...tags].sort((a, b) => b[1] - a[1]),
+      cities: [...cities].sort((a, b) => b[1] - a[1]),
+      longest,
+    };
+  }, [records.data]);
+  const moods = (stats.data?.moods || []).filter((mood) => mood.mood);
+  const moodTotal = moods.reduce((sum, mood) => sum + mood.count, 0);
+  const colors = [
+    "#86a084",
+    "#b9c7ad",
+    "#e9ce83",
+    "#a8c4da",
+    "#c1c2c5",
+    "#d5bca7",
+  ];
+  let position = 0;
+  const gradient = moods
+    .map((mood, i) => {
+      const from = position;
+      position += (mood.count / Math.max(1, moodTotal)) * 100;
+      return `${colors[i % colors.length]} ${from}% ${position}%`;
+    })
+    .join(", ");
+  const first = `${year}-01-01`;
+  const dayCount = Math.round(
+    (new Date(`${year + 1}-01-01T12:00:00`).getTime() -
+      new Date(`${first}T12:00:00`).getTime()) /
+      86400000,
+  );
+  const padding = (new Date(`${first}T12:00:00`).getDay() + 6) % 7;
+  const generate = () => {
+    setBusy(true);
+    void runJob("report", { year, include_notes: notes }).finally(() =>
+      setBusy(false),
+    );
+  };
   return (
     <>
       <PageHeader
-        title="这一年，你留下了什么"
-        subtitle="一份属于自己的年度生活报告。"
+        title="年度报告"
+        subtitle="用一年的照片与文字，回顾生活的点滴，看看这一年成为了怎样的自己。"
       >
         <label className="year-select">
           <input
@@ -331,78 +423,243 @@ export function Report({
           />
           年
         </label>
+        <button
+          className="primary"
+          disabled={busy || !stats.data?.recorded_days}
+          onClick={generate}
+        >
+          <FileDown size={17} />
+          导出 HTML
+        </button>
+        <button onClick={() => window.print()}>
+          <Printer size={17} />
+          打印为 PDF
+        </button>
       </PageHeader>
-      <ErrorBanner message={stats.error || photos.error} />
-      <StatsBar stats={stats.data} />
-      {stats.loading ? (
+      <ErrorBanner message={stats.error || records.error} />
+      <div className="report-kpis">
+        {[
+          {
+            icon: <CalendarDays />,
+            label: "总记录天数",
+            value: stats.data?.recorded_days ?? "—",
+            unit: "天",
+            note: `占应记录日 ${stats.data ? (stats.data.recording_rate * 100).toFixed(1) : "—"}%`,
+          },
+          {
+            icon: <ImageIcon />,
+            label: "照片数量",
+            value: stats.data?.photo_count ?? "—",
+            unit: "张",
+            note: "每一张，都值得珍藏",
+          },
+          {
+            icon: <Smile />,
+            label: "最常心情",
+            value: moods.length ? moodLabel(moods[0].mood) : "未填写",
+            unit: "",
+            note: moods.length
+              ? `出现 ${moods[0].count} 次`
+              : "在记录中写下此刻的心情",
+          },
+          {
+            icon: <Flame />,
+            label: "连续记录",
+            value: analysis.longest,
+            unit: "天",
+            note: "本年最长连续记录",
+          },
+        ].map((item) => (
+          <div className="report-kpi" key={item.label}>
+            <span className="panel-icon">{item.icon}</span>
+            <div>
+              <span>{item.label}</span>
+              <strong>
+                {item.value}
+                <small>{item.unit}</small>
+              </strong>
+              <p>{item.note}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+      {stats.loading || records.loading ? (
         <Loading />
-      ) : stats.data ? (
+      ) : (
         <>
-          <div className="report-grid">
-            <section className="content-section">
-              <h2>十二个月的记录</h2>
-              <div className="month-chart">
-                {Array.from({ length: 12 }, (_, i) => {
-                  const value =
-                    stats.data?.monthly.find(
-                      (m) =>
-                        String(m.month).slice(-2) ===
-                          String(i + 1).padStart(2, "0") ||
-                        Number(m.month) === i + 1,
-                    )?.count || 0;
-                  return (
-                    <div key={i}>
-                      <span>{value}</span>
-                      <div className="bar-track">
-                        <i style={{ height: `${(value / max) * 100}%` }} />
+          <div className="report-main-grid">
+            <section className="report-panel heatmap-panel">
+              <PanelHeading
+                icon={<CalendarDays size={22} />}
+                title="全年记录热力图"
+                subtitle="每一个有记录的日子，都是生活发光的瞬间。"
+              />
+              <div className="heatmap-months">
+                {Array.from({ length: 12 }, (_, i) => (
+                  <span key={i}>{i + 1}月</span>
+                ))}
+              </div>
+              <div className="heatmap-layout">
+                <div className="heatmap-weekdays">
+                  {["周一", "周二", "周三", "周四", "周五", "周六", "周日"].map(
+                    (label) => (
+                      <span key={label}>{label}</span>
+                    ),
+                  )}
+                </div>
+                <div
+                  className="year-heatmap"
+                  style={{
+                    gridTemplateColumns: `repeat(${Math.ceil((dayCount + padding) / 7)}, minmax(0, 1fr))`,
+                  }}
+                >
+                  {Array.from({ length: dayCount + padding }, (_, i) => {
+                    if (i < padding)
+                      return <span className="heatmap-padding" key={i} />;
+                    const date = dateShift(first, i - padding),
+                      entry = analysis.map.get(date),
+                      count =
+                        entry?.photos.filter(
+                          (p) => !p.trashed_at_utc && !p.missing,
+                        ).length || 0;
+                    return (
+                      <button
+                        key={date}
+                        aria-label={`${date}，${count ? count + " 张照片" : "暂无记录"}`}
+                        title={`${date}：${count} 张照片`}
+                        className={`heatmap-day level-${Math.min(4, count)}`}
+                        disabled={date > today()}
+                        onClick={() => onDay(date)}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="heatmap-legend">
+                <span>没有记录</span>
+                {[0, 1, 2, 3, 4].map((level) => (
+                  <i className={`level-${level}`} key={level} />
+                ))}
+                <span>照片较多</span>
+              </div>
+              <p className="report-stat-note">
+                应记录 {stats.data?.eligible_days || 0} 天 · 跳过{" "}
+                {stats.data?.skipped_days || 0} 天 · 当前连续{" "}
+                {stats.data?.current_streak || 0} 天
+              </p>
+            </section>
+            <section className="report-panel">
+              <PanelHeading icon={<Smile size={22} />} title="心情分布" />
+              <div className="mood-distribution">
+                <div
+                  className="mood-donut"
+                  style={{
+                    background: moodTotal
+                      ? `conic-gradient(${gradient})`
+                      : "#eff0ea",
+                  }}
+                  role="img"
+                  aria-label={`共 ${moodTotal} 天填写心情`}
+                >
+                  <div>
+                    <span>心情记录</span>
+                    <strong>{moodTotal}</strong>
+                    <span>天</span>
+                  </div>
+                </div>
+                <div className="mood-legend">
+                  {moods.length ? (
+                    moods.map((mood, i) => (
+                      <div key={mood.mood}>
+                        <i style={{ background: colors[i % colors.length] }} />
+                        <span>{moodLabel(mood.mood)}</span>
+                        <strong>{mood.count}</strong>
+                        <small>
+                          {Math.round((mood.count / moodTotal) * 100)}%
+                        </small>
                       </div>
-                      <small>{i + 1}月</small>
-                    </div>
-                  );
-                })}
+                    ))
+                  ) : (
+                    <p className="muted">这一年还没有填写心情。</p>
+                  )}
+                </div>
               </div>
             </section>
-            <section className="content-section">
-              <h2>写下过的心情</h2>
-              {stats.data.moods.length ? (
-                <div className="mood-report">
-                  {stats.data.moods.map((m) => (
-                    <div key={m.mood}>
-                      <span>{moodLabel(m.mood) || "未填写"}</span>
-                      <strong>
-                        {m.count}
-                        <small> 天</small>
-                      </strong>
+          </div>
+          <div className="report-bottom-grid">
+            <section className="report-panel">
+              <PanelHeading icon={<Tag size={22} />} title="高频标签" />
+              {analysis.tags.length ? (
+                <div className="ranking-list">
+                  {analysis.tags.slice(0, 7).map(([tag, count], i) => (
+                    <div key={tag}>
+                      <span>{i + 1}</span>
+                      <div>
+                        <i
+                          style={{
+                            width: `${(count / analysis.tags[0][1]) * 100}%`,
+                          }}
+                        />
+                        <strong>{tag}</strong>
+                      </div>
+                      <span>{count}</span>
                     </div>
                   ))}
                 </div>
               ) : (
-                <Empty title="心情还留在心里" />
+                <Empty title="还没有标签">
+                  <p>在记录里添加标签，收藏生活的主题。</p>
+                </Empty>
+              )}
+            </section>
+            <section className="report-panel">
+              <PanelHeading icon={<MapPin size={22} />} title="最常去的城市" />
+              {analysis.cities.length ? (
+                <div className="city-ranking">
+                  {analysis.cities.slice(0, 7).map(([city, count], i) => (
+                    <div key={city}>
+                      <span>{i + 1}</span>
+                      <MapPin size={18} />
+                      <strong>{city}</strong>
+                      <span>{count} 天</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <Empty title="还没有城市足迹">
+                  <p>在记录里写下城市，记住走过的地方。</p>
+                </Empty>
+              )}
+            </section>
+            <section className="report-panel">
+              <PanelHeading
+                icon={<ImageIcon size={22} />}
+                title="年度精选回忆"
+              />
+              {analysis.valid.length ? (
+                <div className="report-mosaic">
+                  {analysis.valid.slice(0, 6).map((entry) => (
+                    <button
+                      key={entry.record_date}
+                      onClick={() => onDay(entry.record_date)}
+                    >
+                      <PhotoView
+                        photo={primary(entry)}
+                        alt={entry.record_date}
+                      />
+                      <span>{entry.record_date}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <Empty title="这一年还没有照片">
+                  <p>从今天开始，慢慢收藏每一天。</p>
+                </Empty>
               )}
             </section>
           </div>
-          <section className="content-section">
-            <h2>这一年的最近照片</h2>
-            {photos.data?.entries.some((e) => primary(e)) ? (
-              <div className="report-mosaic">
-                {photos.data.entries
-                  .filter((e) => primary(e))
-                  .map((e) => (
-                    <button
-                      key={e.record_date}
-                      onClick={() => onDay(e.record_date)}
-                    >
-                      <PhotoView photo={primary(e)} alt={e.record_date} />
-                      <span>{e.record_date}</span>
-                    </button>
-                  ))}
-              </div>
-            ) : (
-              <Empty title="这一年还没有照片" />
-            )}
-          </section>
         </>
-      ) : null}
+      )}
       <section className="export-section">
         <div>
           <h2>保存一份，可以离线打开的报告</h2>
@@ -416,12 +673,7 @@ export function Report({
         <button
           className="primary"
           disabled={busy || !stats.data?.recorded_days}
-          onClick={() => {
-            setBusy(true);
-            void runJob("report", { year, include_notes: notes }).finally(() =>
-              setBusy(false),
-            );
-          }}
+          onClick={generate}
         >
           生成年度报告 <ArrowRight size={16} />
         </button>

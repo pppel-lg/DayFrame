@@ -20,13 +20,16 @@ def upload(client, day='2026-10-01', color='red'):
 def wait_job(client, payload):
     result = client.post('/api/jobs', json=payload)
     assert result.status_code == 200, result.text
-    for _ in range(200):
+    # Backup performs real fsync/checksum IO; Windows runner scheduling and
+    # filesystem scanning must not turn a 200-poll (~2s) assumption into a failure.
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
         job = client.get('/api/jobs/' + result.json()['job_id']).json()
         if job['status'] in ['success', 'failed', 'cancelled']:
             assert job['status'] == 'success', job
             return job
         time.sleep(.01)
-    pytest.fail('job timed out')
+    pytest.fail(f'job did not finish within 30s: {payload}; last state: {job}')
 
 
 def test_api_persistence_metadata_photos_and_confirmations(client):
